@@ -11,11 +11,11 @@ import copy
 # from adafruit_ads1x15.analog_in import AnalogIn
 
 
-access_token = 's2PUxOTsaqGbSeSxq9AV'
+access_token = ''
 
 headers = {'Content-Type': 'application/json',}
 
-IP, PORT =  'watt.linksfoundation.com', '8080'
+IP, PORT =  '', ''
 
 url_post = 'http://{}:{}/api/v1/{}/telemetry'.format(IP, PORT, access_token)
 
