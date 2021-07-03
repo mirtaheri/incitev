@@ -1,0 +1,24 @@
+METERING:
+  ENVIRONMENT: test
+
+
+CONTROL:
+  KP:
+  KD:
+
+DATABASE:
+  USERNAME:
+  PASSWORD:
+  HOST:
+  PORT:
+  DB:
+
+COMMUNICATION:
+  CLOUD:
+    PROTOCOL: http
+    SERVER: 'watt.linksfoundation.com'
+    PORT: 8080
+  LOCAL:
+    PROTOCOL: mqtt
+    SERVER: '127.0.0.1'
+    PORT: 1883
