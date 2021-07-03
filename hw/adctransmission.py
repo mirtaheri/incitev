@@ -25,12 +25,12 @@ ctrl_flag = False
 send_flag = 0
 temp_controller = 0
 batch_voltages = np.array([])
-
+<<<<<<< HEAD
 batch_voltages_bit = np.array([])
-
+=======
 batch_voltages_bits = np.array([])
 batch_currents = np.array([])
-
+>>>>>>> 671f253b5af1dd2611093f9cf47f03f0109c2124
 tss=np.array([])
 
 # temporaries
@@ -48,24 +48,24 @@ def adc_read():
     global times
     global posts
     global batch_voltages
-
+<<<<<<< HEAD
     global batch_voltages_bit
-
+=======
     global batch_voltages_bits
     global batch_currents
-
+>>>>>>> 671f253b5af1dd2611093f9cf47f03f0109c2124
     global tss
     global ctrl_flag
     global start_sampling_ts
     global end_sampling_ts
 
     voltages = np.array([])
-
+<<<<<<< HEAD
     voltages_bit = np.array([])
-
+=======
     voltages_bits = np.array([])
     currents = np.array([])
-
+>>>>>>> 671f253b5af1dd2611093f9cf47f03f0109c2124
     sampling_rate = 0.01
     send_batch_size =  100
     raw_batch_size = 100
@@ -74,18 +74,17 @@ def adc_read():
         while True:
             if not start_sampling_ts:
                 start_sampling_ts = time.time()*1000
+<<<<<<< HEAD
 
-                
             voltages = np.append(voltages, channel_voltage.voltage)
             voltages_bit = np.append(voltages_bit, channel_voltage.value)
             #currents = np.append(currents, np.random.random())
-
-            
+=======
             voltages = np.append(voltages, np.random.random())
             voltages_bits = np.append(voltages_bits, np.random.random())
             currents = np.append(currents, np.random.random())
+>>>>>>> 671f253b5af1dd2611093f9cf47f03f0109c2124
 
-            
             if len(voltages) >= raw_batch_size:
                 end_sampling_ts = time.time()*1000
                 tss = (np.linspace(start_sampling_ts, end_sampling_ts,
@@ -93,13 +92,13 @@ def adc_read():
 
 
                 batch_voltages = copy.deepcopy(voltages).reshape(-1, int(raw_batch_size/send_batch_size)).mean(axis=0)
-
+<<<<<<< HEAD
                 batch_voltages_bit = copy.deepcopy(voltages_bit).reshape(-1, int(raw_batch_size/send_batch_size)).mean(axis=0)
                 send_flag = 1
                 start_sampling_ts = 0
                 voltages = np.array([])
                 voltages_bit = np.array([])
-
+=======
                 batch_voltages_bits = copy.deepcopy(voltages_bits).reshape(-1, int(raw_batch_size/send_batch_size)).mean(axis=0)
                 batch_currents = copy.deepcopy(currents).reshape(-1, int(raw_batch_size/send_batch_size)).mean(axis=0)
                 send_flag = 1
@@ -107,8 +106,8 @@ def adc_read():
                 voltages = np.array([])
                 voltages_bits = np.array([])
                 currents = np.array([])
+>>>>>>> 671f253b5af1dd2611093f9cf47f03f0109c2124
 
-                
             time.sleep(sampling_rate)
             temp_controller += 1
             if ctrl_flag:
@@ -128,17 +127,15 @@ def http_write():
             if send_flag:
                 #print(tss)
                 data = [dict(ts=str(tss[i]),
-
+<<<<<<< HEAD
                              values=dict(voltage_bit=str(batch_voltages_bit[i]),
                              voltage=str(batch_voltages[i]))) for i in range(len(batch_voltages))]
-
-                
+=======
                     values=dict(current=str(batch_currents[i]),
                         voltage_data_bits=str(batch_voltages_bits[i]),
                         voltage=str(batch_voltages[i])))
                      for i in range(len(batch_voltages))]
-
-                        
+>>>>>>> 671f253b5af1dd2611093f9cf47f03f0109c2124
                 _message_to_send = json.dumps(data)
                 response = requests.post(url_post, headers=headers, data=_message_to_send)
                 send_flag = 0
