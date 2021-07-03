@@ -66,9 +66,10 @@ def adc_read():
         while True:
             if not start_sampling_ts:
                 start_sampling_ts = time.time()*1000
-            voltages = np.append(voltages, np.random.random())
-            voltages_bits = np.append(voltages_bits, np.random.random())
+            voltages = np.append(voltages, channel_voltage.voltage) #np.random.random())
+            voltages_bits = np.append(voltages_bits,channel_voltage.value) #np.random.random())
             currents = np.append(currents, np.random.random())
+            # print(len(voltages))
 
             if len(voltages) >= raw_batch_size:
                 end_sampling_ts = time.time()*1000
@@ -101,13 +102,9 @@ def http_write():
     try:
         while True:
             if send_flag:
-                print(tss)
-                data = [dict(ts=str(tss[i]),
-                    values=dict(
-                        current=str(batch_currents[i]),
-                        voltage_data_bits=str(batch_voltages_bits[i]),
-                        voltage=str(batch_voltages[i]))
-                    for i in range(len(batch_voltages))]
+                
+                data = [dict(ts=str(tss[i]), values=dict(current=str(batch_currents[i]), voltage_data_bits=str(batch_voltages_bits[i]), voltage=str(batch_voltages[i]))) for i in range(len(batch_voltages))]
+
                 _message_to_send = json.dumps(data)
                 response = requests.post(url_post, headers=headers, data=_message_to_send)
                 send_flag = 0
