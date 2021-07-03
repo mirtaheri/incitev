@@ -126,15 +126,11 @@ def http_write():
         while True:
             if send_flag:
                 #print(tss)
-                data = [dict(ts=str(tss[i]),
-
-                             values=dict(voltage_bit=str(batch_voltages_bit[i]),
-                             voltage=str(batch_voltages[i]))) for i in range(len(batch_voltages))]
-
-                    values=dict(current=str(batch_currents[i]),
-                        voltage_data_bits=str(batch_voltages_bits[i]),
-                        voltage=str(batch_voltages[i])))
-                     for i in range(len(batch_voltages))]
+                data = [dict(ts=str(tss[i]), values=dict(voltage_bit=str(batch_voltages_bit[i]), voltage=str(batch_voltages[i]))) for i in range(len(batch_voltages))]
+                
+                values=dict(current=str(batch_currents[i]),
+                            voltage_data_bits=str(batch_voltages_bits[i]),
+                            voltage=str(batch_voltages[i]))) for i in range(len(batch_voltages))]
 
                 _message_to_send = json.dumps(data)
                 response = requests.post(url_post, headers=headers, data=_message_to_send)
