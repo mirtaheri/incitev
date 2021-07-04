@@ -1,11 +1,3 @@
-import yaml
-
-
-def read_config(file_path = "./config.yaml"):
-    with open(file_path, "r") as f:
-        return yaml.safe_load(f)
-
-
-config = read_config()
-print(config['COMMUNICATION']['CLOUD'])
-
+import os
+path = os.path.dirname(os.path.abspath(__file__))
+print(path)

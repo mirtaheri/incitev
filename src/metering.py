@@ -5,13 +5,14 @@ import datetime
 import time
 import threading
 import copy
-import sys
+import sys, os
 import yaml
 import board
 import busio
 import adafruit_ads1x15.ads1015 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 
+abspath = os.path.dirname(os.path.abspath(__file__))
 
 # GLOBAL VARIABLES
 
@@ -113,7 +114,7 @@ def stop_control():
     time.sleep(0.1)
     ctrl_flag = True
 
-def read_config(file_path = "./config.yaml"):
+def read_config(file_path = abspath + "/config.yaml"):
     with open(file_path, "r") as f:
         return yaml.safe_load(f)
 
