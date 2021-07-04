@@ -18,6 +18,7 @@ COMMUNICATION:
     PROTOCOL: http
     SERVER: 'watt.linksfoundation.com'
     PORT: 8080
+    TOKEN: 's2PUxOTsaqGbSeSxq9AV'
   LOCAL:
     PROTOCOL: mqtt
     SERVER: '127.0.0.1'

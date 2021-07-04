@@ -5,27 +5,17 @@ import datetime
 import time
 import threading
 import copy
+import sys
+import yaml
 import board
 import busio
 import adafruit_ads1x15.ads1015 as ADS
 from adafruit_ads1x15.analog_in import AnalogIn
 
 
-access_token = 's2PUxOTsaqGbSeSxq9AV'
+# GLOBAL VARIABLES
 
-headers = {'Content-Type': 'application/json',}
-
-IP, PORT =  'watt.linksfoundation.com', '8080'
-
-url_post = 'http://{}:{}/api/v1/{}/telemetry'.format(IP, PORT, access_token)
-
-i2c = busio.I2C(board.SCL, board.SDA)
-
-ads = ADS.ADS1015(i2c)
-
-channel_voltage = AnalogIn(ads, ADS.P0, ADS.P1)
-
-ctrl_flag = False
+ctrl_flag = False # this can be set via an mqtt etc.
 send_flag = 0
 temp_controller = 0
 batch_voltages = np.array([])
@@ -54,6 +44,7 @@ def adc_read():
     global ctrl_flag
     global start_sampling_ts
     global end_sampling_ts
+    print(config['COMMUNICATION']['CLOUD'])
 
     voltages = np.array([])
     voltages_bits = np.array([])
@@ -122,11 +113,32 @@ def stop_control():
     time.sleep(0.1)
     ctrl_flag = True
 
-try:
-#     threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
-    threadAdcRead   = threading.Thread(target=adc_read).start()
-    threadHttpWrite = threading.Thread(target=http_write).start()
-#     threadprocessControl = threading.Thread(target=stop_control).start()
-except KeyboardInterrupt:
-    sys.exit()
-    print("intentional exit")
+def read_config(file_path = "./config.yaml"):
+    with open(file_path, "r") as f:
+        return yaml.safe_load(f)
+
+
+if __name__ == '__main__':
+    config = read_config()
+
+    # Cloud service configuration
+    access_token = config['COMMUNICATION']['CLOUD']['TOKEN']
+    PROTOCOL = config['COMMUNICATION']['CLOUD']['PROTOCOL']
+    headers = {'Content-Type': 'application/json', }
+    IP, PORT = config['COMMUNICATION']['CLOUD']['SERVER'], config['COMMUNICATION']['CLOUD']['PORT']
+    url_post = '{}://{}:{}/api/v1/{}/telemetry'.format(PROTOCOL, IP, PORT, access_token)
+
+    # ADC drive configuration
+    i2c = busio.I2C(board.SCL, board.SDA)
+    ads = ADS.ADS1015(i2c)
+    channel_voltage = AnalogIn(ads, ADS.P0, ADS.P1)
+
+    config['COMMUNICATION']['CLOUD']['SERVER']
+    try:
+    #     threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
+        threadAdcRead   = threading.Thread(target=adc_read).start()
+        threadHttpWrite = threading.Thread(target=http_write).start()
+    #     threadprocessControl = threading.Thread(target=stop_control).start()
+    except KeyboardInterrupt:
+        sys.exit()
+        print("intentional exit")
