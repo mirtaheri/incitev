@@ -45,14 +45,13 @@ def adc_read():
     global ctrl_flag
     global start_sampling_ts
     global end_sampling_ts
-    print(config['COMMUNICATION']['CLOUD'])
 
     voltages = np.array([])
     voltages_bits = np.array([])
     currents = np.array([])
-    sampling_rate = 0.01
-    send_batch_size = 50
-    raw_batch_size = 1000
+    sampling_rate = config['CONTROL']['sampling_rate']
+    send_batch_size = config['CONTROL']['send_batch_size']
+    raw_batch_size = config['CONTROL']['raw_batch_size']
     try:
         start_sampling_ts = 0
         while True:
@@ -134,7 +133,6 @@ if __name__ == '__main__':
     ads = ADS.ADS1015(i2c)
     channel_voltage = AnalogIn(ads, ADS.P0, ADS.P1)
 
-    config['COMMUNICATION']['CLOUD']['SERVER']
     try:
     #     threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
         threadAdcRead   = threading.Thread(target=adc_read).start()

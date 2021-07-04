@@ -3,6 +3,9 @@ METERING:
 
 
 CONTROL:
+  sampling_rate: 0.01
+  send_batch_size: 50
+  raw_batch_size: 200
   KP:
   KD:
 
@@ -19,6 +22,7 @@ COMMUNICATION:
     SERVER: 'watt.linksfoundation.com'
     PORT: 8080
     TOKEN: 's2PUxOTsaqGbSeSxq9AV'
+
   LOCAL:
     PROTOCOL: mqtt
     SERVER: '127.0.0.1'
