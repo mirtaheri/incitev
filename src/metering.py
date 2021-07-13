@@ -7,8 +7,9 @@ import threading
 import copy
 import sys, os
 
-assert sys.version_info.major == 3 and sys.version_info.minor == 8
+assert sys.version_info.major == 3 and sys.version_info.minor == 7
 import yaml
+
 
 try:
     import board
@@ -16,7 +17,9 @@ try:
     import adafruit_ads1x15.ads1015 as ADS
     from adafruit_ads1x15.analog_in import AnalogIn
     device = True
-
+    print("\n       ----- SUCCESSFULLY started with peripherials -----")
+    #adc = Adafruit_ADS1x15.ADS1015(address=0x49, bus=1)
+    #mcp = adafruit_mcp9600.MCP9600(i2c, 0x60)
 except:
     print("\n   *** You do not have installed the required  libraries to get data from the ADC... Switching to remote device mode ****  \n")
     device = False
@@ -181,7 +184,7 @@ if __name__ == '__main__':
         i2c = busio.I2C(board.SCL, board.SDA)
         ads = ADS.ADS1015(i2c)
         channel_voltage = AnalogIn(ads, ADS.P0, ADS.P1)
-
+        #adc = Adafruit_ADS1x15.ADS1015(address=0x49, bus=1)
     try:
     #     threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
         threadAdcRead   = threading.Thread(target=adc_read).start()
