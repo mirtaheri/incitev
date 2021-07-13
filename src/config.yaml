@@ -4,7 +4,7 @@ METERING:
 
 CONTROL:
   sampling_rate: 0.01
-  send_batch_size: 50
+  send_batch_size: 10
   raw_batch_size: 200
   KP:
   KD:
