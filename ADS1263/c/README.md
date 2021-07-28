@@ -22,3 +22,20 @@ gpio -v
 ### to test and run the code:
 cd /path/to/the/code
 ./main
+
+
+# Compile code (if any code in path)
+sudo make clean
+sudo make
+
+# Demo code
+sudo apt-get install p7zip-full
+wget http://www.waveshare.com/w/upload/6/64/High-Pricision_AD_HAT_Code.7z
+7z x High-Pricision_AD_HAT_Code.7z -r -o./High-Pricision_AD_HAT_Code
+cd High-Pricision_AD_HAT_Code/
+
+## compile them
+cd ~/High-Pricision_AD_HAT_Code/c
+sudo make clean
+sudo make
+sudo ./main
