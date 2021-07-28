@@ -129,7 +129,7 @@ def adc_read():
                 
                 derivative_voltage = voltage - voltage_t_minus_one
                 voltage_t_minus_one = voltage
-                if np.abs(derivative_voltage) > 1: # or voltage > 630 or voltage < 560 or tram_coming:
+                if np.abs(derivative_voltage) > 0.1: # or voltage > 630 or voltage < 560 or tram_coming:
                     dynamic_sampling_time = sampling_rate
                 else:
                     dynamic_sampling_time = np.min((dynamic_sampling_time + sampling_rate, max_sampling_time))
@@ -180,7 +180,7 @@ def http_write():
         while True:
             if send_flag:
                 data = [dict(ts=str(tss[i]), values=dict(voltage=str(batch_voltages[i]), current=str(batch_currents[i]))) for i in range(len(batch_voltages))]
-                print(data)
+                #print(data)
                 _message_to_send = json.dumps(data)
                 try:
                     response = requests.post(url_post, headers=headers, data=_message_to_send)

@@ -1,4 +1,7 @@
 
+# Important!!!
+Don't rely on requirement.txt! you would best follow the installation manually! 
+
 # Installations of Libraries
 sudo apt-get update
 sudo apt-get install ttf-wqy-zenhei
