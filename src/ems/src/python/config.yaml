@@ -1,0 +1,29 @@
+METERING:
+  ENVIRONMENT: test
+
+
+CONTROL:
+  sampling_rate: 0.1
+  send_batch_size: 1
+  raw_batch_size: 20
+  KP:
+  KD:
+
+DATABASE:
+  USERNAME:
+  PASSWORD:
+  HOST:
+  PORT:
+  DB:
+
+COMMUNICATION:
+  CLOUD:
+    PROTOCOL: http
+    SERVER: 'watt.linksfoundation.com'
+    PORT: 8080
+    TOKEN: 's2PUxOTsaqGbSeSxq9AV'
+
+  LOCAL:
+    PROTOCOL: mqtt
+    SERVER: '127.0.0.1'
+    PORT: 1883
