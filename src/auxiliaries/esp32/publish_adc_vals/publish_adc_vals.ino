@@ -16,8 +16,9 @@ NOTE:
 */
 
 #include "WiFi.h" // ESP32 WiFi include
-#include "WiFiConfig.h" // WiFi configuration.
+#include "include/WiFiConfig.h" // WiFi configuration.
 #include "PubSubClient.h" // MQTT library
+
 #include <time.h> 
 #include <stdlib.h>
 
