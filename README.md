@@ -15,8 +15,8 @@ log_dest file /mosquitto/log/mosquitto.log
 listener 1883
 ## Authentication ##
 allow_anonymous true
-# allow_anonymous false
-# password_file /mosquitto/conf/mosquitto.conf
+#### allow_anonymous false
+#### password_file /mosquitto/conf/mosquitto.conf
 
 
 `docker run -d --restart unless-stopped -p 1882:1883 -v /home/mirtaheri/mosquitto/conf/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto`
