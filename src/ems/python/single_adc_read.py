@@ -86,13 +86,14 @@ def adc_read():
         ADC = ADS1263.ADS1263()
         if (ADC.ADS1263_init() == -1):
             exit()
-            
+        
+        logger.info("ADC are connected successfully")
         # shivid comment:
         # It doesn't work because the scanMode is not property of the Class ADS1263
         try:
             ADC.ADS1263_SetMode(1)
         except Exception as e:
-            print(e)
+            logger.erro(e)
         # ADC.ADS1263_DAC_Test(1, 1)      # Open IN6
         # ADC.ADS1263_DAC_Test(0, 1)      # Open IN7
         
@@ -185,7 +186,7 @@ def adc_read():
     
     except KeyboardInterrupt:
         print("ctrl + c:")
-        print("Program end")
+        logger.info("Program forced to stop")
         ADC.ADS1263_Exit()
         exit()
 
@@ -214,12 +215,12 @@ def http_write():
                     response = requests.post(url_post, headers=headers, data=_message_to_send)
                     retention_flag = False
                 except:
-                    print("\n          CONNECTION ISSUE WITH SERVER")
+                    logger.info("\n          CONNECTION ISSUE WITH SERVER")
                     retention_flag = True
                     pass
                 send_flag = 0
                 temp_controller += 1
-                print("I send data")
+                # logger.info("I send data")
             if ctrl_flag:
                 print("thread two is quitting...")
                 sys.exit()
