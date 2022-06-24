@@ -8,11 +8,29 @@ import threading
 import copy
 import sys, os
 import yaml
-
+import logging
+from logging.handlers import RotatingFileHandler
 assert sys.version_info.major == 3 and sys.version_info.minor == 7
 import time
 import ADS1263
 import RPi.GPIO as GPIO
+
+
+abspath = os.path.dirname(os.path.abspath(__file__))
+
+# TODO: if no logs, create it
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+len_handler = RotatingFileHandler(abspath+'/logs.log', mode='a', maxBytes=5 * 1024 * 1024,
+                                  backupCount=2, encoding=None, delay=False)
+formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(filename)s: %(message)s')
+len_handler.setFormatter(formatter)
+logger.addHandler(len_handler)
+logger.info(" *** Starting service *** ")
+# ----------------------------------------------------------------------------------------------------------
+# ---------------------------------- constant creation and tunning section ---------------------------------
+# ----------------------------------------------------------------------------------------------------------
+
 
 REF = 5.08          # Modify according to actual voltage
                     # external AVDD and AVSS(Default), or internal 2.5V
@@ -21,7 +39,6 @@ TEST_RTD = 0        # RTD Test part
 
 VOLTAGE_COEFF = 60
 
-abspath = os.path.dirname(os.path.abspath(__file__))
 
 
 # ----- codes for reading the registers starts here ----
