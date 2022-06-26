@@ -8,6 +8,7 @@ import threading
 import copy
 import sys, os
 import yaml
+import paho.mqtt.client as mqtt
 
 assert sys.version_info.major == 3 and sys.version_info.minor == 7
 import time
@@ -45,8 +46,8 @@ REF = 5.08          # Modify according to actual voltage
 TEST_ADC = 1        # ADC Test part
 TEST_RTD = 0        # RTD Test part
 
-VOLTAGE_COEFF = 60
-
+VOLTAGE_COEFF = 1
+CURRENT_COEFF = 1
 
 # ------------------------------------------------------------------------------
 # -------------------- codes for reading the registers starts here -------------
@@ -58,19 +59,32 @@ temp_controller = 0
 
 batch_voltages = np.array([])
 batch_currents = np.array([])
+control_array  = np.array([])
 
 tss=np.array([])
 retention_flag = False
 # temporaries
 start_sampling_ts = None
 end_sampling_ts = None
+db_url = None
+closest_tram_dist = None
+
+last_avg_samples = None
+MOVING_AVG_LEN = 5
+
 data =  []
 batch = []
 
 times = []
 posts = []
 
-def adc_read():
+# ATTENTION! I need to update this based on final decision, whether to consider the raw values or scaled values.
+threshold = 1e-3
+
+available_capacity = 0
+ChargeProfileID    = 0
+
+def adc_read(CONTROL=True):
     global send_flag
     global temp_controller
     global times
@@ -82,10 +96,38 @@ def adc_read():
     global ctrl_flag
     global start_sampling_ts
     global end_sampling_ts
+    global MOVING_AVG_LEN
+    global control_array
+    global available_capacity
+    global ChargeProfileID
+    global threshold
+    # global client
 
     voltages = np.array([])
     currents = np.array([])
  
+    ocpp_smrtchg_template = {
+      "csChargingProfiles": {
+        "chargingProfileId": None,
+        "chargingProfileKind": "Absolute",
+        "chargingProfilePurpose": "TxProfile",
+        "chargingSchedule": {
+          "chargingRateUnit": "W",
+          "chargingSchedulePeriod": [
+            {
+              "limit": None,
+              "startPeriod": 0
+            }
+          ],
+          "duration": None
+        },
+        "stackLevel": 0,
+        "transactionId": None,
+        "validFrom": None,
+        "validTo": None
+      }
+    }
+    
     # rate of update and size of batches
     sampling_rate = config['CONTROL']['sampling_rate']
     send_batch_size = config['CONTROL']['send_batch_size']
@@ -121,25 +163,69 @@ def adc_read():
                 start_sampling_ts = time.time()*1000
             # tic = time.time()
             raw_voltage = ADC.ADS1263_GetChannalValue(0)
-            rawcurrent = ADC.ADS1263_GetChannalValue(1)
+            raw_current = ADC.ADS1263_GetChannalValue(1)
             # print(raw_voltage)
-            # print(rawcurrent)
+            # print(raw_current)
 
             if(raw_voltage>>31 == 1):
                 voltage = REF*2 - raw_voltage * REF / 0x80000000   
             else:
                 voltage = raw_voltage * REF / 0x7fffffff # 32bit
       
-            if(rawcurrent>>31 ==1):
-                current = REF*2 - rawcurrent * REF / 0x80000000   
+            if(raw_current>>31 ==1):
+                current = REF*2 - raw_current * REF / 0x80000000   
             else:
-                current = rawcurrent * REF / 0x7fffffff # 32bit
+                current = raw_current * REF / 0x7fffffff # 32bit
             #print(time.time()-tic)
             voltage = voltage * VOLTAGE_COEFF
+            current = current * CURRENT_COEFF
             #print(voltage)
             voltages = np.append(voltages, voltage)
             currents = np.append(currents, current)
-
+            
+            # --------------------------------------------------------------------------
+            # -------------------------------- CONTROL ---------------------------------
+            # --------------------------------------------------------------------------
+            if CONTROL:
+                control_array = np.insert(control_array, 0, voltage)[:MOVING_AVG_LEN]
+                
+                if temp_controller == 0:
+                    last_avg_samples = voltage
+                    
+                    
+                avg_samples = control_array.sum()/len(control_array)
+                rate_of_change_voltage = avg_samples - last_avg_samples
+                last_avg_samples = avg_samples
+                
+                CONTROL_APPLIES = True if rate_of_change_voltage > threshold else False
+                
+                if CONTROL_APPLIES:
+                    # make message
+                    NOW = datetime.datetime.now()
+                    validFrom = datetime.datetime.strftime(NOW, "%Y-%m-%dT%H:%M:%S:00+00:00")
+                    validTo = datetime.datetime.strftime(NOW+datetime.timedelta(minutes=5), "%Y-%m-%dT%H:%M:%S:00+00:00")
+                    message_template = copy.deepcopy(ocpp_smrtchg_template)
+                    message_template['csChargingProfiles']['validFrom'] = validFrom
+                    message_template['csChargingProfiles']['validTo'] = validTo
+                    message_template['csChargingProfiles']['chargingProfileId'] = ChargeProfileID
+               
+                    
+                    # from here, all depends on the received data from cscu
+                    ChargeProfileID += 1 
+                    if available_capacity > 0:
+                        # this value should be coming from message of cscu indicating how many vehicle are connected to which chargers
+                        normalized_power_per_ev = 10000
+                        message_template['csChargingProfiles']['chargingSchedule']['chargingSchedulePeriod'][0]['limit'] = normalized_power_per_ev
+                    else:
+                        # here I need to implement discharging in case there is/are EVs but not capacity
+                        # This part should be completed yet...
+                        pass
+                        
+                    client.publish(TOPIC, json.dumps(message_template))
+                    
+            # --------------------------------------------------------------------------
+            # --------------------------------------------------------------------------
+            
             if len(voltages) >= int(raw_batch_size/send_batch_size): # and not retention_flag:
                 end_sampling_ts = time.time() * 1000
                 tss = (np.linspace(start_sampling_ts, end_sampling_ts,
@@ -238,8 +324,39 @@ def http_write():
         print("intentional exit")
 
 
-def tramway_positions():
-    pass
+def tramway_positions(number_of_samples=10, valid_data_seconds=300, db_query_rate=60):
+    global closest_tram_dist
+    while True:
+        try:
+            client = pymongo.MongoClient(db_url)
+            db = client["GTT"]
+        
+            collection_predictions = db["predictions"]
+            collection_positions = db["positions"]
+            
+            cursor_predictions = collection_predictions.find().sort([('ExpectedArrivalTime', -1)]).limit(number_of_samples)
+            cursor_positions = collection_positions.find().sort([('Timestamp', -1)]).limit(number_of_samples)
+            latest_positions = list(cursor_positions)
+            latest_registry = datetime.datetime(1970,1,1)
+            for i in latest_positions:
+                dt = datetime.datetime.strptime(i['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                if dt>latest_registry:
+                    latest_registry = dt
+                
+            if (datetime.datetime.now() - latest_registry).seconds <= valid_data_seconds: # This meand if the latest data is related to more than 5 minuts ago, discard it 
+                coordinates_list = coordinates(latest_positions)
+                closest_tram_dist = get_distance(coordinates_list)
+                
+            else:
+                # valid data not available
+                logger.info("Databse data are related to more than 5 minutes ago; to be discarded!")
+                closest_tram_dist = 2
+            
+        except Exception as e:
+            logger.warning("CONNECTION TO DATABASE SERVER REFUSED: {}".format(e))
+        
+        time.sleep(db_query_rate)
+      
 
 
 def get_distance(lat_lon_list):
@@ -270,6 +387,14 @@ def read_config(file_path = abspath + "/config.yaml"):
     with open(file_path, "r") as f:
         return yaml.safe_load(f)
 
+
+def onConnect(mqttc, userdata, flags, rc):
+    print("Connected with result code "+str(rc))
+    if rc!=0 :
+        mqttc.reconnect()
+        
+        
+        
 if __name__ == '__main__':
     config = read_config()
     # Cloud service configuration
@@ -281,20 +406,27 @@ if __name__ == '__main__':
 
     db_url = config['DATABASE']['DB'] + "://" + config['DATABASE']['USERNAME'] + ":" + config['DATABASE']['PASSWORD'] \
              + "@" + config['DATABASE']['HOST'] + ":" + config['DATABASE']['PORT'] + "/"
+             
+    caio_mario_coordinates = radians(config['METERING']['latitude']), radians(config['METERING']['longitude'])
 
-    client = pymongo.MongoClient(db_url)
-    #"mongodb://admin:password@130.192.92.239:27020/"
-    db = client["GTT"]
 
-    collection_predictions = db["predictions"]
-    collection_positions = db["positions"]
+    SETPOINT_IP, SETPOINT_PORT = config['COMMUNICATION']['SETPOINTS']['SERVER'], config['COMMUNICATION']['SETPOINTS']['PORT']
+    
+    TOPIC = config['COMMUNICATION']['SETPOINTS']['TOPIC']
+    client               = mqtt.Client()
+    client.on_connect    = onConnect
+    client.connect(SETPOINT_IP, SETPOINT_PORT)
 
     try:
     #     threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
-        AdcRead   = threading.Thread(target=adc_read).start()
-        HttpWrite = threading.Thread(target=http_write).start()
-        tramTracker     = threading.Thread(target=http_write).start()
+        AdcRead     = threading.Thread(target=adc_read).start()
+        HttpWrite   = threading.Thread(target=http_write).start()
+        TramTracker = threading.Thread(target=tramway_positions).start()
     #     threadprocessControl = threading.Thread(target=stop_control).start()
     except KeyboardInterrupt:
         sys.exit()
         print("intentional exit")
+        
+    # todo: 
+    # handle disconnect from brocker
+    # listening for status of the EVs from CSCU for SoC and connected vehicles

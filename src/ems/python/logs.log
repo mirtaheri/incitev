@@ -4,3 +4,55 @@
 2022-06-24 17:49:19,678 : INFO : single_adc_read.py:  *** Starting service *** 
 2022-06-26 17:48:19,468 : INFO : single_adc_read.py:  *** Starting service *** 
 2022-06-26 17:48:51,116 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 17:30:58,069 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 17:31:50,710 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 17:31:51,390 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 17:33:45,249 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 17:33:45,916 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 17:34:15,168 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 17:34:15,800 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 17:34:37,745 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 17:34:38,411 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 17:59:14,118 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 17:59:14,780 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 18:00:15,635 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 18:00:16,298 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 18:00:40,794 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 18:00:41,442 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 18:00:49,962 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 18:00:50,617 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 20:15:44,074 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 20:15:44,731 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 20:15:45,242 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 20:26:33,599 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 20:26:34,259 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 20:26:34,378 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 20:27:13,221 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 20:27:13,882 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 20:27:14,047 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 21:13:20,228 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:13:20,885 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 21:13:21,216 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 21:13:54,189 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:13:54,848 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 21:13:55,001 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 21:14:00,507 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:14:01,160 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 21:14:01,303 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 21:29:53,926 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:29:54,583 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 21:29:54,681 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 21:31:49,113 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:32:03,666 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:33:13,502 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:33:14,220 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 21:33:14,383 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 21:34:03,621 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:34:04,314 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 21:34:04,980 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 21:35:10,956 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:35:11,686 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 21:35:11,860 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
+2022-06-26 21:35:17,218 : INFO : single_adc_read.py:  *** Starting service *** 
+2022-06-26 21:35:17,921 : INFO : single_adc_read.py: ADC are connected successfully
+2022-06-26 21:35:18,095 : INFO : single_adc_read.py: Databse data are related to more than 5 minutes ago; to be discarded!
