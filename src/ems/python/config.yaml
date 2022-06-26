@@ -10,11 +10,11 @@ CONTROL:
   KD:
 
 DATABASE:
-  USERNAME:
-  PASSWORD:
-  HOST:
-  PORT:
-  DB:
+  USERNAME: admin
+  PASSWORD: password
+  HOST: '130.192.92.239'
+  PORT: 27020
+  DB: mongodb
 
 COMMUNICATION:
   CLOUD:

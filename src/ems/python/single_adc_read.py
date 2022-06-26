@@ -9,10 +9,16 @@ import copy
 import sys, os
 import yaml
 
-assert sys.version_info.major == 3 and sys.version_info.minor == 7
-import time
-import ADS1263
-import RPi.GPIO as GPIO
+# assert sys.version_info.major == 3 and sys.version_info.minor == 7
+# import time
+# import ADS1263
+# import RPi.GPIO as GPIO
+import pymongo
+from math import radians, cos, sin, asin, sqrt
+
+# ------------------------------------------------------------------------------
+# -------------------- Tuning and constants settings ---------------------------
+# ------------------------------------------------------------------------------
 
 REF = 5.08          # Modify according to actual voltage
                     # external AVDD and AVSS(Default), or internal 2.5V
@@ -23,8 +29,9 @@ VOLTAGE_COEFF = 60
 
 abspath = os.path.dirname(os.path.abspath(__file__))
 
-
-# ----- codes for reading the registers starts here ----
+# ------------------------------------------------------------------------------
+# -------------------- codes for reading the registers starts here -------------
+# ------------------------------------------------------------------------------
 
 ctrl_flag = False # this can be set via an mqtt etc.
 send_flag = 0
@@ -211,6 +218,29 @@ def http_write():
         print("intentional exit")
 
 
+def tramway_positions():
+    pass
+
+
+def get_distance(lat_lon_list):
+    closest_vehicle = np.inf
+    for coordination in lat_lon_list:
+        lat_vehicle = radians(coordination[0])
+        lon_vehicle = radians(coordination[1])
+        dlat = lat_vehicle - caio_mario_coordinates[0]
+        dlon = lon_vehicle - caio_mario_coordinates[1]
+        a = sin(dlat / 2)**2 + cos(caio_mario_coordinates[0]) * cos(lat_vehicle) * sin(dlon / 2)**2
+
+        c = 2 * asin(sqrt(a))
+        r = 6371
+        if c * r < closest_vehicle:
+            closest_vehicle = c*r
+    return closest_vehicle
+
+
+coordinates = lambda data: [(i['Latitude'], i['Longitude']) for i in data]
+
+
 def stop_control():
     global ctrl_flag
     time.sleep(0.1)
@@ -220,7 +250,6 @@ def read_config(file_path = abspath + "/config.yaml"):
     with open(file_path, "r") as f:
         return yaml.safe_load(f)
 
-
 if __name__ == '__main__':
     config = read_config()
     # Cloud service configuration
@@ -229,11 +258,21 @@ if __name__ == '__main__':
     headers = {'Content-Type': 'application/json', }
     IP, PORT = config['COMMUNICATION']['CLOUD']['SERVER'], config['COMMUNICATION']['CLOUD']['PORT']
     url_post = '{}://{}:{}/api/v1/{}/telemetry'.format(PROTOCOL, IP, PORT, access_token)
-    
+
+    db_url = config['DATABASE']['DB'] + "://" + config['DATABASE']['USERNAME'] + ":" + config['DATABASE']['PASSWORD'] \
+             + "@" + config['DATABASE']['HOST'] + ":" + config['DATABASE']['PORT'] + "/"
+    print(db_url)
+    client = pymongo.MongoClient("mongodb://admin:password@130.192.92.239:27020/")
+    db = client["GTT"]
+
+    collection_predictions = db["predictions"]
+    collection_positions = db["positions"]
+
     try:
     #     threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
         threadAdcRead   = threading.Thread(target=adc_read).start()
         threadHttpWrite = threading.Thread(target=http_write).start()
+        tramTracker     = threading.Thread(target=http_write).start()
     #     threadprocessControl = threading.Thread(target=stop_control).start()
     except KeyboardInterrupt:
         sys.exit()
