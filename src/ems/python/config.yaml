@@ -13,7 +13,7 @@ DATABASE:
   USERNAME: admin
   PASSWORD: password
   HOST: '130.192.92.239'
-  PORT: 27020
+  PORT: '27020'
   DB: mongodb
 
 COMMUNICATION:

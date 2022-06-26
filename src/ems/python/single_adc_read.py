@@ -15,16 +15,13 @@ import ADS1263
 import RPi.GPIO as GPIO
 import pymongo
 from math import radians, cos, sin, asin, sqrt
+import logging
+from logging.handlers import RotatingFileHandler
 
 # ------------------------------------------------------------------------------
 # -------------------- Tuning and constants settings ---------------------------
 # ------------------------------------------------------------------------------
-import logging
-from logging.handlers import RotatingFileHandler
-assert sys.version_info.major == 3 and sys.version_info.minor == 7
-import time
-import ADS1263
-import RPi.GPIO as GPIO
+
 
 
 abspath = os.path.dirname(os.path.abspath(__file__))
@@ -284,8 +281,9 @@ if __name__ == '__main__':
 
     db_url = config['DATABASE']['DB'] + "://" + config['DATABASE']['USERNAME'] + ":" + config['DATABASE']['PASSWORD'] \
              + "@" + config['DATABASE']['HOST'] + ":" + config['DATABASE']['PORT'] + "/"
-    print(db_url)
-    client = pymongo.MongoClient("mongodb://admin:password@130.192.92.239:27020/")
+
+    client = pymongo.MongoClient(db_url)
+    #"mongodb://admin:password@130.192.92.239:27020/"
     db = client["GTT"]
 
     collection_predictions = db["predictions"]
@@ -293,8 +291,8 @@ if __name__ == '__main__':
 
     try:
     #     threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
-        threadAdcRead   = threading.Thread(target=adc_read).start()
-        threadHttpWrite = threading.Thread(target=http_write).start()
+        AdcRead   = threading.Thread(target=adc_read).start()
+        HttpWrite = threading.Thread(target=http_write).start()
         tramTracker     = threading.Thread(target=http_write).start()
     #     threadprocessControl = threading.Thread(target=stop_control).start()
     except KeyboardInterrupt:
