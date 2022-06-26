@@ -1,5 +1,8 @@
+
 METERING:
   ENVIRONMENT: test
+  latitude: 45.02776967279967
+  longitude: 7.639643285417048
 
 
 CONTROL:
@@ -22,8 +25,12 @@ COMMUNICATION:
     SERVER: 'watt.linksfoundation.com'
     PORT: 8080
     TOKEN: 's2PUxOTsaqGbSeSxq9AV'
-
   LOCAL:
     PROTOCOL: mqtt
     SERVER: '127.0.0.1'
     PORT: 1883
+  SETPOINTS:
+    PROTOCOL: mqtt
+    SERVER: '130.192.92.239'
+    PORT: 1882
+    TOPIC: 'incitev/uc4/smartcharging/setpoint/cs1'
