@@ -324,7 +324,7 @@ def http_write():
         print("intentional exit")
 
 
-def tramway_positions(number_of_samples=10, valid_data_seconds=300, db_query_rate=60):
+def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rate=60):
     global closest_tram_dist
     while True:
         try:
