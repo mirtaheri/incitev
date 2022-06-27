@@ -9,17 +9,17 @@ configuration file in `/mirtaheri/mosquitto/conf/mosquitt.conf` includes:
 
 `
 <br>
-persistence true
+`persistence true`
 <br>
-persistence_location /mosquitto/data/
+`persistence_location /mosquitto/data/`
 <br>
-log_dest file /mosquitto/log/mosquitto.log
+`log_dest file /mosquitto/log/mosquitto.log`
 <br>
-listener 1883
+`listener 1883`
 <br>
 ## Authentication ##
-<br>allow_anonymous true
-<br>#allow_anonymous false
+<br>`allow_anonymous true`
+<br>#`allow_anonymous false`
 `
 password_file /mosquitto/conf/mosquitto.conf
 
