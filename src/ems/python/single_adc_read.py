@@ -342,6 +342,57 @@ def tramway_positions(number_of_samples=10, valid_data_seconds=300, db_query_rat
                 dt = datetime.datetime.strptime(i['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
                 if dt>latest_registry:
                     latest_registry = dt
+                    
+                    
+                    
+            # --------------------------- Vechile position visualization ------------------------------------
+            # -----------------------------------------------------------------------------------------------
+            vehicle_dict = {i['VehicleId']:i for i in latest_positions}
+            
+            for i in latest_positions:
+                
+                try:
+                    var_data_time = datetime.datetime.strptime(i['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                    ref_data_time = datetime.datetime.strptime(vehicle_dict[i['VehicleId']]['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                except Exception as _err:
+                    print(_err)
+
+                if var_data_time >= ref_data_time:
+                    vehicle_dict[i['VehicleId']]['Timestamp'] = i['Timestamp']
+                    data = {"ts":time.time()*1000, #int(datetime.datetime.timestamp(var_data_time) * 1000),
+                            "values": {"latitude": i['Latitude'], "longitude": i['Longitude'],
+                                       "Speed": "N/A", "vehicleType":"tram", "vehicle":i['VehicleId'],
+                                       "Line":i['PublishedLineName'], "destination": None,
+                                       "StopPointName":None, "AimedArrivalTime":None,
+                                       "ExpectedArrivalTime":None}}
+                    
+                    vehicle_dict[i['VehicleId']].update(data = data)
+            
+
+            tram_objects = ["http://watt.linksfoundation.com:8080/api/v1/TNtck3ESnADvBhfh9ggX/telemetry", 
+                            "http://watt.linksfoundation.com:8080/api/v1/ZUX9YCzB1b1mtnTGiZvc/telemetry",
+                            "http://watt.linksfoundation.com:8080/api/v1/Bs4NKbEb9cdaTRW0OBs1/telemetry"]
+            
+            headers = {'Content-Type': 'application/json', }
+            
+            for idx, (k, v) in enumerate(vehicle_dict.items()):
+                try:
+                    url_post = tram_objects[idx]
+
+                    _message_to_send = json.dumps(v['data'])
+                    response = requests.post(url_post, headers=headers, data=_message_to_send)
+
+                except Exception as e:
+                    print(idx, "I need more token for IoT platform.", e)
+                    
+            
+            url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
+            substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
+            _message_to_send = json.dumps(substation_fix_data)
+            response = requests.post(url_substation, headers=headers, data=_message_to_send)
+
+            # -----------------------------------------------------------------------------------------------
+            # -----------------------------------------------------------------------------------------------
                 
             if (datetime.datetime.now() - latest_registry).seconds <= valid_data_seconds: # This meand if the latest data is related to more than 5 minuts ago, discard it 
                 coordinates_list = coordinates(latest_positions)
