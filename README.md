@@ -8,8 +8,8 @@
 configuration file in `/mirtaheri/mosquitto/conf/mosquitt.conf` includes:
 
 `
-persistence true
-persistence_location /mosquitto/data/
+\n persistence true
+\n persistence_location /mosquitto/data/
 log_dest file /mosquitto/log/mosquitto.log
 
 listener 1883
