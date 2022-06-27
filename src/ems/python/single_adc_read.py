@@ -197,8 +197,8 @@ def adc_read(CONTROL=True):
                 last_avg_samples = avg_samples
                 
                 CONTROL_APPLIES = True if rate_of_change_voltage > threshold else False
-                
-                if True: #CONTROL_APPLIES:
+
+                if CONTROL_APPLIES:
                     # make message
                     NOW = datetime.datetime.now()
                     validFrom = datetime.datetime.strftime(NOW, "%Y-%m-%dT%H:%M:%S:00+00:00")
