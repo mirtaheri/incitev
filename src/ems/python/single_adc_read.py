@@ -101,12 +101,7 @@ def adc_read(CONTROL=True):
     global available_capacity
     global ChargeProfileID
     global threshold
-<<<<<<< HEAD
-    # global client
 
-=======
-    
->>>>>>> 5fc6edfff88880ccceba740795e11ff8ea83b6c4
     voltages = np.array([])
     currents = np.array([])
  
@@ -202,12 +197,9 @@ def adc_read(CONTROL=True):
                 last_avg_samples = avg_samples
                 
                 CONTROL_APPLIES = True if rate_of_change_voltage > threshold else False
-                
-<<<<<<< HEAD
+
+
                 if CONTROL_APPLIES:
-=======
-                if True: #CONTROL_APPLIES:
->>>>>>> 5fc6edfff88880ccceba740795e11ff8ea83b6c4
                     # make message
                     NOW = datetime.datetime.now()
                     validFrom = datetime.datetime.strftime(NOW, "%Y-%m-%dT%H:%M:%S:00+00:00")
