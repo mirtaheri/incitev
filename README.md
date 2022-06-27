@@ -20,7 +20,8 @@ configuration file in `/mirtaheri/mosquitto/conf/mosquitt.conf` includes:
 ## Authentication ##
 <br>`allow_anonymous true`
 <br>#`allow_anonymous false`
-`
+
+
 password_file /mosquitto/conf/mosquitto.conf
 
 
