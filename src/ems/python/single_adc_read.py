@@ -18,6 +18,7 @@ import pymongo
 from math import radians, cos, sin, asin, sqrt
 import logging
 from logging.handlers import RotatingFileHandler
+from gpiozero import CPUTemperature
 
 # ------------------------------------------------------------------------------
 # -------------------- Tuning and constants settings ---------------------------
@@ -67,7 +68,7 @@ retention_flag = False
 start_sampling_ts = None
 end_sampling_ts = None
 db_url = None
-closest_tram_dist = None
+closest_tram_dist = 0
 
 last_avg_samples = None
 MOVING_AVG_LEN = 5
@@ -101,6 +102,7 @@ def adc_read(CONTROL=True):
     global available_capacity
     global ChargeProfileID
     global threshold
+    global closest_tram_dist
 
     voltages = np.array([])
     currents = np.array([])
@@ -131,6 +133,8 @@ def adc_read(CONTROL=True):
     sampling_rate = config['CONTROL']['sampling_rate']
     send_batch_size = config['CONTROL']['send_batch_size']
     raw_batch_size = config['CONTROL']['raw_batch_size']
+    
+    cpu = CPUTemperature()
 
     try:
         ADC = ADS1263.ADS1263()
@@ -261,9 +265,43 @@ def adc_read(CONTROL=True):
             time.sleep(sampling_rate)
             '''
             temp_controller += 1
+            
             if ctrl_flag:
                 print("thread one is quitting...")
                 sys.exit()
+            
+            try:
+                cpu_temperature = cpu.temperature
+            except:
+                cpu = CPUTemperature()
+          
+            temperature_delay = max(cpu_temperature-40, 0)/100
+   
+            TOTAL_DELAY = 0 #temperature_delay + 0 
+            if (datetime.datetime.now().hour < 5) or (datetime.datetime.now().hour > 23):
+                night_delay = 60
+            else:
+                night_delay = 0
+                
+            if closest_tram_dist <= 2:
+                distance_delay = 0
+            else:
+                distance_delay = 1
+            
+            TOTAL_DELAY = temperature_delay + night_delay + distance_delay
+            
+            if (temp_controller%100)==0:
+                url_temperature = "http://watt.linksfoundation.com:8080/api/v1/KFIk7kVivrJwWpw9pfTb/telemetry" 
+                #url_sampling    = "http://watt.linksfoundation.com:8080/api/v1/YCC7kgyRvPLvbtWG9YP3/telemetry" 
+                data = {"ts":time.time()*1000,
+                        "values": {"temperature":cpu_temperature, "sampling":TOTAL_DELAY}}
+                
+
+                _message_to_send = json.dumps(data)
+                response = requests.post(url_temperature, headers=headers, data=_message_to_send)
+
+            #print(cpu_temperature, TOTAL_DELAY, temperature_delay, night_delay, distance_delay, closest_tram_dist)
+            time.sleep(TOTAL_DELAY)
 
             """
             for i in range(0, 10):
@@ -314,11 +352,12 @@ def http_write():
                     retention_flag = True
                     pass
                 send_flag = 0
-                temp_controller += 1
+                # temp_controller += 1
                 # logger.info("I send data")
             if ctrl_flag:
                 print("thread two is quitting...")
                 sys.exit()
+            time.sleep(1)
     except KeyboardInterrupt:
         sys.exit()
         print("intentional exit")
@@ -373,7 +412,6 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                             "http://watt.linksfoundation.com:8080/api/v1/ZUX9YCzB1b1mtnTGiZvc/telemetry",
                             "http://watt.linksfoundation.com:8080/api/v1/Bs4NKbEb9cdaTRW0OBs1/telemetry"]
             
-            headers = {'Content-Type': 'application/json', }
             
             for idx, (k, v) in enumerate(vehicle_dict.items()):
                 try:
