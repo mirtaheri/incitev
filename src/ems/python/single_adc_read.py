@@ -23,7 +23,8 @@ from gpiozero import CPUTemperature
 # ------------------------------------------------------------------------------
 # -------------------- Tuning and constants settings ---------------------------
 # ------------------------------------------------------------------------------
-
+# this number if higher, increases the effect of cpu temperature on sampling rate at cost of bigger granularity of acquired data
+SAMPLING_DIVIDER = 200
 
 
 abspath = os.path.dirname(os.path.abspath(__file__))
@@ -279,10 +280,10 @@ def adc_read(CONTROL=True):
                 cpu_temperature = cpu.temperature
             except:
                 cpu = CPUTemperature()
-          
-            temperature_delay = max(cpu_temperature-40, 0)/100
-   
-            TOTAL_DELAY = 0 #temperature_delay + 0 
+            
+            # this value of 300 is put based on experience and some tries. I need to watch the temperature of cpu on dashboard and change this accordingly to avoid overheating RPI
+            temperature_delay = max(cpu_temperature-40, 0)/SAMPLING_DIVIDER
+    
             if (datetime.datetime.now().hour < 5) or (datetime.datetime.now().hour > 23):
                 night_delay = 60
             else:
