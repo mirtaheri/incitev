@@ -86,6 +86,11 @@ available_capacity = 0
 ChargeProfileID    = 0
 
 def adc_read(CONTROL=True):
+    """
+    main function that handles the measurements and sampling and making dataset
+    :param CONTROL:
+    :return:
+    """
     global send_flag
     global temp_controller
     global times
@@ -324,7 +329,12 @@ def adc_read(CONTROL=True):
         exit()
 
 
+
 def http_write():
+    """
+    sends data over http to the cloud service (thingsboard)
+    :return:
+    """
     global temp_controller
     global send_flag
     global ctrl_flag
@@ -363,16 +373,31 @@ def http_write():
         print("intentional exit")
 
 
+
+
 def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rate=60):
+    """
+    makes query to database and gets the latest data of tramways fleet
+    :param number_of_samples: int
+        number of latest documents
+    :param valid_data_seconds: int
+        more than this, already data is obsolete
+    :param db_query_rate: int
+        delay between queries
+    :return:
+    """
     global closest_tram_dist
     while True:
         try:
+            # connect o DB
             client = pymongo.MongoClient(db_url)
             db = client["GTT"]
-        
+
+            # tabels
             collection_predictions = db["predictions"]
             collection_positions = db["positions"]
-            
+
+            # separate cursors per table
             cursor_predictions = collection_predictions.find().sort([('ExpectedArrivalTime', -1)]).limit(number_of_samples)
             cursor_positions = collection_positions.find().sort([('Timestamp', -1)]).limit(number_of_samples)
             latest_positions = list(cursor_positions)
@@ -386,18 +411,23 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                     
             # --------------------------- Vechile position visualization ------------------------------------
             # -----------------------------------------------------------------------------------------------
+            # template dictionary for vehicles data
             vehicle_dict = {i['VehicleId']:i for i in latest_positions}
             
             for i in latest_positions:
                 
                 try:
+                    # compare the most recent data per tramway
                     var_data_time = datetime.datetime.strptime(i['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
                     ref_data_time = datetime.datetime.strptime(vehicle_dict[i['VehicleId']]['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
                 except Exception as _err:
-                    print(_err)
+                    logger.error(_err)
 
                 if var_data_time >= ref_data_time:
                     vehicle_dict[i['VehicleId']]['Timestamp'] = i['Timestamp']
+                    # In fact I need to put the timestamp of the latest retreived data from database. But now
+                    # DB doesn't get updated frequently and this maight be longer the interval thingsboard dashboard
+                    # keeps visualization of latest device data
                     data = {"ts":time.time()*1000, #int(datetime.datetime.timestamp(var_data_time) * 1000),
                             "values": {"latitude": i['Latitude'], "longitude": i['Longitude'],
                                        "Speed": "N/A", "vehicleType":"tram", "vehicle":i['VehicleId'],
@@ -407,12 +437,12 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                     
                     vehicle_dict[i['VehicleId']].update(data = data)
             
-
+            # I can add as much as needed, however on map becomes confusing
             tram_objects = ["http://watt.linksfoundation.com:8080/api/v1/TNtck3ESnADvBhfh9ggX/telemetry", 
                             "http://watt.linksfoundation.com:8080/api/v1/ZUX9YCzB1b1mtnTGiZvc/telemetry",
                             "http://watt.linksfoundation.com:8080/api/v1/Bs4NKbEb9cdaTRW0OBs1/telemetry"]
             
-            
+            # sends the latest positions of the tramways fleet to thingsboard for visualization
             for idx, (k, v) in enumerate(vehicle_dict.items()):
                 try:
                     url_post = tram_objects[idx]
@@ -423,7 +453,7 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                 except Exception as e:
                     print(idx, "I need more token for IoT platform.", e)
                     
-            
+            # for visualization of the substation position on map
             url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
             substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
             _message_to_send = json.dumps(substation_fix_data)
@@ -449,6 +479,11 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
 
 
 def get_distance(lat_lon_list):
+    """
+    calculated the distance between two points (substation and the closest tramway)
+    :param lat_lon_list: list of tuples indicating the latest positions of tramways fleet
+    :return:
+    """
     closest_vehicle = np.inf
     for coordination in lat_lon_list:
         lat_vehicle = radians(coordination[0])
@@ -458,26 +493,48 @@ def get_distance(lat_lon_list):
         a = sin(dlat / 2)**2 + cos(caio_mario_coordinates[0]) * cos(lat_vehicle) * sin(dlon / 2)**2
 
         c = 2 * asin(sqrt(a))
+        # earth diameter
         r = 6371
         if c * r < closest_vehicle:
             closest_vehicle = c*r
     return closest_vehicle
 
-
+# auxiliary function
 coordinates = lambda data: [(i['Latitude'], i['Longitude']) for i in data]
 
 
+
 def stop_control():
+    """
+    to listen and get execution control from external components
+    :return:
+    """
     global ctrl_flag
     time.sleep(0.1)
     ctrl_flag = True
 
+
+
 def read_config(file_path = abspath + "/config.yaml"):
+    """
+    read configuration file
+    :param file_path:
+    :return:
+    """
     with open(file_path, "r") as f:
         return yaml.safe_load(f)
 
 
+
 def onConnect(mqttc, userdata, flags, rc):
+    """
+    mqtt calback
+    :param mqttc:
+    :param userdata:
+    :param flags:
+    :param rc:
+    :return:
+    """
     print("Connected with result code "+str(rc))
     if rc!=0 :
         mqttc.reconnect()
@@ -485,7 +542,10 @@ def onConnect(mqttc, userdata, flags, rc):
         
         
 if __name__ == '__main__':
+
+    # read configuration file
     config = read_config()
+
     # Cloud service configuration
     access_token = config['COMMUNICATION']['CLOUD']['TOKEN']
     PROTOCOL = config['COMMUNICATION']['CLOUD']['PROTOCOL']
@@ -493,12 +553,14 @@ if __name__ == '__main__':
     IP, PORT = config['COMMUNICATION']['CLOUD']['SERVER'], config['COMMUNICATION']['CLOUD']['PORT']
     url_post = '{}://{}:{}/api/v1/{}/telemetry'.format(PROTOCOL, IP, PORT, access_token)
 
+    # make the url for thingsboard instance on watt
     db_url = config['DATABASE']['DB'] + "://" + config['DATABASE']['USERNAME'] + ":" + config['DATABASE']['PASSWORD'] \
              + "@" + config['DATABASE']['HOST'] + ":" + config['DATABASE']['PORT'] + "/"
-             
+
+    # to be used for measuring distance of tramways and also for visualization on dashboard
     caio_mario_coordinates = radians(config['METERING']['latitude']), radians(config['METERING']['longitude'])
 
-
+    # connection to cscu and setpoints communication via mqtt
     SETPOINT_IP, SETPOINT_PORT = config['COMMUNICATION']['SETPOINTS']['SERVER'], config['COMMUNICATION']['SETPOINTS']['PORT']
     
     TOPIC = config['COMMUNICATION']['SETPOINTS']['TOPIC']
@@ -506,16 +568,19 @@ if __name__ == '__main__':
     client.on_connect    = onConnect
     client.connect(SETPOINT_IP, SETPOINT_PORT)
 
+    #TODO: I need to set a listener to cscu for state of connected vehicles and their parameters
+
     try:
-    #     threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
+        # handle differnt parts of codes by different separated threads
+        # threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
         AdcRead     = threading.Thread(target=adc_read).start()
         HttpWrite   = threading.Thread(target=http_write).start()
         TramTracker = threading.Thread(target=tramway_positions).start()
-    #     threadprocessControl = threading.Thread(target=stop_control).start()
+        # threadprocessControl = threading.Thread(target=stop_control).start()
     except KeyboardInterrupt:
         sys.exit()
         print("intentional exit")
         
     # todo: 
-    # handle disconnect from brocker
+    # handle disconnect from broker
     # listening for status of the EVs from CSCU for SoC and connected vehicles
