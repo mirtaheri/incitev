@@ -204,26 +204,30 @@ def adc_read(CONTROL=True):
             # -------------------------------- CONTROL ---------------------------------
             # --------------------------------------------------------------------------
             if CONTROL:
-                # tries to filter the noises by a moving average
-                control_array_voltage = np.insert(control_array_voltage, 0, voltage)[:MOVING_AVG_LEN]
-                control_array_current = np.insert(control_array_current, 0, current)[:MOVING_AVG_LEN]
-                
-                if temp_controller == 0:
-                    last_avg_samples_voltage = voltage
-                    last_avg_samples_current = current
-                
-                # checks the voltage evolution
-                avg_samples_voltage = control_array_voltage.sum()/len(control_array_voltage)
-                rate_of_change_voltage = avg_samples_voltage - last_avg_samples_voltage
-                last_avg_samples_voltage = avg_samples_voltage
-                
-                # checks the current behaviour
-                avg_samples_current = control_array_current.sum()/len(control_array_current)
-                rate_of_change_current = avg_samples_current - last_avg_samples_current
-                last_avg_samples_current = avg_samples_current
-                
-                # if voltage is increasing and the current is reducing, there is a braking event
-                CONTROL_APPLIES = True if rate_of_change_voltage > threshold and np.sign(rate_of_change_current) == -1 else False
+                try:
+                    # tries to filter the noises by a moving average
+                    control_array_voltage = np.insert(control_array_voltage, 0, voltage)[:MOVING_AVG_LEN]
+                    control_array_current = np.insert(control_array_current, 0, current)[:MOVING_AVG_LEN]
+                    
+                    if temp_controller == 0:
+                        last_avg_samples_voltage = voltage
+                        last_avg_samples_current = current
+                    
+                    # checks the voltage evolution
+                    avg_samples_voltage = control_array_voltage.sum()/len(control_array_voltage)
+                    rate_of_change_voltage = avg_samples_voltage - last_avg_samples_voltage
+                    last_avg_samples_voltage = avg_samples_voltage
+                    
+                    # checks the current behaviour
+                    avg_samples_current = control_array_current.sum()/len(control_array_current)
+                    rate_of_change_current = avg_samples_current - last_avg_samples_current
+                    last_avg_samples_current = avg_samples_current
+                    
+                    # if voltage is increasing and the current is reducing, there is a braking event
+                    CONTROL_APPLIES = True if rate_of_change_voltage > threshold and np.sign(rate_of_change_current) == -1 else False
+                except Exception as err:
+                    print("Control application issue: ".format(err))
+                    logger.error("Control application issue: ".format(err))
 
 
                 if CONTROL_APPLIES:
@@ -247,9 +251,12 @@ def adc_read(CONTROL=True):
                         # here I need to implement discharging in case there is/are EVs but not capacity
                         # This part should be completed yet...
                         pass
-                        
-                    mqtt_client.publish(TOPIC, json.dumps(message_template))
-                    
+                    try:
+                        mqtt_client.publish(TOPIC, json.dumps(message_template))
+                    except Exceptio as e_pub:
+                        print("OCPP setpoint instruction faced issue: ".format(err))
+                        logger.error("OCPP setpoint instruction faced issue: ".format(err))
+
             # --------------------------------------------------------------------------
             # --------------------------------------------------------------------------
             if temp_controller%(999) == 0:
@@ -316,7 +323,7 @@ def adc_read(CONTROL=True):
                 night_delay = 0
 
             
-            TOTAL_DELAY = 0#temperature_delay + night_delay + distance_delay
+            TOTAL_DELAY = temperature_delay + night_delay + distance_delay
             
             if (temp_controller%100)==0:
                 url_temperature = "http://watt.linksfoundation.com:8080/api/v1/KFIk7kVivrJwWpw9pfTb/telemetry" 
@@ -473,7 +480,7 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                     # keeps visualization of latest device data
                     data = {"ts":time.time()*1000, #int(datetime.datetime.timestamp(var_data_time) * 1000),
                             "values": {"latitude": i['Latitude'], "longitude": i['Longitude'],
-                                       "Speed": "N/A", "vehicleType":"tram", "vehicle":i['VehicleId'],
+                                       "Speed": "N/A", "vehicleType":"tram", "vehicleID":i['VehicleId'],
                                        "Line":i['PublishedLineName'], "destination": None,
                                        "StopPointName":None, "AimedArrivalTime":None,
                                        "ExpectedArrivalTime":None}}
