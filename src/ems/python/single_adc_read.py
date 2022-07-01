@@ -61,10 +61,12 @@ temp_controller = 0
 
 batch_voltages = np.array([])
 batch_currents = np.array([])
-control_array  = np.array([])
+control_array_voltage  = np.array([])
+control_array_current  = np.array([])
 
 tss=np.array([])
 retention_flag = False
+retention_queue = []
 # temporaries
 start_sampling_ts = None
 end_sampling_ts = None
@@ -104,7 +106,8 @@ def adc_read(CONTROL=True):
     global start_sampling_ts
     global end_sampling_ts
     global MOVING_AVG_LEN
-    global control_array
+    global control_array_voltage
+    global control_array_current
     global available_capacity
     global ChargeProfileID
     global threshold
@@ -167,7 +170,9 @@ def adc_read(CONTROL=True):
         adcdata = np.zeros(shape=(5))
 
         while(1):
-    
+            if temp_controller%(999) == 0:
+               logger.info("A regular check for disconnection issue at cycle {} of the execution".format(temp_controller))  
+                
             if not start_sampling_ts:
                 start_sampling_ts = time.time()*1000
             # tic = time.time()
@@ -175,6 +180,9 @@ def adc_read(CONTROL=True):
             raw_current = ADC.ADS1263_GetChannalValue(1)
             # print(raw_voltage)
             # print(raw_current)
+            if temp_controller%(999) == 0:
+               logger.info("At cycle {} the raw data are : {} and {}".format(temp_controller, raw_voltage, raw_current))  
+                
 
             if(raw_voltage>>31 == 1):
                 voltage = REF*2 - raw_voltage * REF / 0x80000000   
@@ -196,17 +204,26 @@ def adc_read(CONTROL=True):
             # -------------------------------- CONTROL ---------------------------------
             # --------------------------------------------------------------------------
             if CONTROL:
-                control_array = np.insert(control_array, 0, voltage)[:MOVING_AVG_LEN]
+                # tries to filter the noises by a moving average
+                control_array_voltage = np.insert(control_array_voltage, 0, voltage)[:MOVING_AVG_LEN]
+                control_array_current = np.insert(control_array_current, 0, current)[:MOVING_AVG_LEN]
                 
                 if temp_controller == 0:
-                    last_avg_samples = voltage
-                    
-                    
-                avg_samples = control_array.sum()/len(control_array)
-                rate_of_change_voltage = avg_samples - last_avg_samples
-                last_avg_samples = avg_samples
+                    last_avg_samples_voltage = voltage
+                    last_avg_samples_current = current
                 
-                CONTROL_APPLIES = True if rate_of_change_voltage > threshold else False
+                # checks the voltage evolution
+                avg_samples_voltage = control_array_voltage.sum()/len(control_array_voltage)
+                rate_of_change_voltage = avg_samples_voltage - last_avg_samples_voltage
+                last_avg_samples_voltage = avg_samples_voltage
+                
+                # checks the current behaviour
+                avg_samples_current = control_array_current.sum()/len(control_array_current)
+                rate_of_change_current = avg_samples_current - last_avg_samples_current
+                last_avg_samples_current = avg_samples_current
+                
+                # if voltage is increasing and the current is reducing, there is a braking event
+                CONTROL_APPLIES = True if rate_of_change_voltage > threshold and np.sign(rate_of_change_current) == -1 else False
 
 
                 if CONTROL_APPLIES:
@@ -231,11 +248,12 @@ def adc_read(CONTROL=True):
                         # This part should be completed yet...
                         pass
                         
-                    client.publish(TOPIC, json.dumps(message_template))
+                    mqtt_client.publish(TOPIC, json.dumps(message_template))
                     
             # --------------------------------------------------------------------------
             # --------------------------------------------------------------------------
-            
+            if temp_controller%(999) == 0:
+               logger.info("A regular check for disconnection issue; voltage array length is: {}".format(voltages.size))   
             if len(voltages) >= int(raw_batch_size/send_batch_size): # and not retention_flag:
                 end_sampling_ts = time.time() * 1000
                 tss = (np.linspace(start_sampling_ts, end_sampling_ts,
@@ -254,6 +272,7 @@ def adc_read(CONTROL=True):
                 start_sampling_ts = 0
                 voltages = np.array([])
                 currents = np.array([])
+         
 
             ### Teporaary part of codes and variables
             # here I control rate of change for variable of interest is changing
@@ -297,7 +316,7 @@ def adc_read(CONTROL=True):
                 night_delay = 0
 
             
-            TOTAL_DELAY = temperature_delay + night_delay + distance_delay
+            TOTAL_DELAY = 0#temperature_delay + night_delay + distance_delay
             
             if (temp_controller%100)==0:
                 url_temperature = "http://watt.linksfoundation.com:8080/api/v1/KFIk7kVivrJwWpw9pfTb/telemetry" 
@@ -344,6 +363,7 @@ def http_write():
     global ctrl_flag
     global data
     global retention_flag
+    global retention_queue
 
     try:
         while True:
@@ -358,14 +378,29 @@ def http_write():
                 
                 #print(data)
                 _message_to_send = json.dumps(data)
+               
                 try:
                     response = requests.post(url_post, headers=headers, data=_message_to_send)
+                    # print(" -----> ", response.ok, response, " <------")
                     retention_flag = False
-                except:
-                    logger.info("\n          CONNECTION ISSUE WITH SERVER")
+                except Exception as e:
+                    logger.info("Connection to server problem : {}".format(e))
                     retention_flag = True
-                    pass
+                    retention_queue.append(_message_to_send)
+
+
                 send_flag = 0
+                if temp_controller%(999) == 0:
+                   logger.info("At cycle {} the data being pushed to server".format(temp_controller))  
+                
+                #retry for sending again data that remained in retention queue
+                for msg in range(len(retention_queue)):
+                    try:
+                        response_retry = requests.post(url_post, headers=headers, data=retention_queue[msg_idx])
+                        if response_retry.ok:
+                            retention_queue.pop(msg_idx)
+                    except Exception as e:
+                        logger.info("New attempt for sending data failed again: {}".format(e))
                 # temp_controller += 1
                 # logger.info("I send data")
             if ctrl_flag:
@@ -394,8 +429,8 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
     while True:
         try:
             # connect o DB
-            client = pymongo.MongoClient(db_url)
-            db = client["GTT"]
+            db_client = pymongo.MongoClient(db_url)
+            db = db_client["GTT"]
 
             # tabels
             collection_predictions = db["predictions"]
@@ -404,6 +439,7 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
             # separate cursors per table
             cursor_predictions = collection_predictions.find().sort([('ExpectedArrivalTime', -1)]).limit(number_of_samples)
             cursor_positions = collection_positions.find().sort([('Timestamp', -1)]).limit(number_of_samples)
+            
             latest_positions = list(cursor_positions)
             latest_registry = datetime.datetime(1970,1,1)
             for i in latest_positions:
@@ -411,6 +447,9 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                 if dt>latest_registry:
                     latest_registry = dt
                     
+            if temp_controller%(999) == 0:
+               logger.info("At cycle {} Database is queried".format(temp_controller))  
+                
                     
                     
             # --------------------------- Vechile position visualization ------------------------------------
@@ -444,7 +483,10 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
             # I can add as much as needed, however on map becomes confusing
             tram_objects = ["http://watt.linksfoundation.com:8080/api/v1/TNtck3ESnADvBhfh9ggX/telemetry", 
                             "http://watt.linksfoundation.com:8080/api/v1/ZUX9YCzB1b1mtnTGiZvc/telemetry",
-                            "http://watt.linksfoundation.com:8080/api/v1/Bs4NKbEb9cdaTRW0OBs1/telemetry"]
+                            "http://watt.linksfoundation.com:8080/api/v1/Bs4NKbEb9cdaTRW0OBs1/telemetry",
+                            "http://watt.linksfoundation.com:8080/api/v1/DLtQl9FdEmJlD5hWpsoE/telemetry",
+                            "http://watt.linksfoundation.com:8080/api/v1/TBfqqRrI3g6eILG4EKms/telemetry",
+                            "http://watt.linksfoundation.com:8080/api/v1/S1VwR9v83PPLiGj4QqOg/telemetry"]
             
             # sends the latest positions of the tramways fleet to thingsboard for visualization
             for idx, (k, v) in enumerate(vehicle_dict.items()):
@@ -465,18 +507,19 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
 
             # -----------------------------------------------------------------------------------------------
             # -----------------------------------------------------------------------------------------------
-                
+            db_client.close()    
             if (datetime.datetime.now() - latest_registry).seconds <= valid_data_seconds: # This meand if the latest data is related to more than 5 minuts ago, discard it 
                 coordinates_list = coordinates(latest_positions)
                 closest_tram_dist = get_distance(coordinates_list)
                 
             else:
                 # valid data not available
-                logger.info("Databse data are related to more than 5 minutes ago; to be discarded!")
+                # logger.info("Databse data are related to more than 5 minutes ago; to be discarded!")
                 closest_tram_dist = 2
             
         except Exception as e:
             logger.warning("CONNECTION TO DATABASE SERVER REFUSED: {}".format(e))
+            print("CONNECTION TO DATABASE SERVER REFUSED: {}".format(e))
         
         time.sleep(db_query_rate)
       
@@ -568,9 +611,9 @@ if __name__ == '__main__':
     SETPOINT_IP, SETPOINT_PORT = config['COMMUNICATION']['SETPOINTS']['SERVER'], config['COMMUNICATION']['SETPOINTS']['PORT']
     
     TOPIC = config['COMMUNICATION']['SETPOINTS']['TOPIC']
-    client               = mqtt.Client()
-    client.on_connect    = onConnect
-    client.connect(SETPOINT_IP, SETPOINT_PORT)
+    mqtt_client               = mqtt.Client()
+    mqtt_client.on_connect    = onConnect
+    mqtt_client.connect(SETPOINT_IP, SETPOINT_PORT)
 
     #TODO: I need to set a listener to cscu for state of connected vehicles and their parameters
 
