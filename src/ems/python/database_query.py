@@ -60,7 +60,7 @@ except Exception as error:
 
 
 
-	retreivedData = response.json()
+retreivedData = response.json()
 
 
 TS = np.array([datetime.datetime.fromtimestamp(t['ts']/1000) for t in retreivedData[keys.split(",")[0]]])
