@@ -83,10 +83,12 @@ times = []
 posts = []
 
 # ATTENTION! I need to update this based on final decision, whether to consider the raw values or scaled values.
-threshold = 1e-3
+threshold = 3e-3
 
 available_capacity = 0
 ChargeProfileID    = 0
+control_counter = 0
+
 
 def adc_read(CONTROL=True):
     """
@@ -112,6 +114,7 @@ def adc_read(CONTROL=True):
     global ChargeProfileID
     global threshold
     global closest_tram_dist
+    global control_counter
 
     voltages = np.array([])
     currents = np.array([])
@@ -171,28 +174,39 @@ def adc_read(CONTROL=True):
 
         while(1):
             if temp_controller%(999) == 0:
-               logger.info("A regular check for disconnection issue at cycle {} of the execution".format(temp_controller))  
+               logger.info("A regular check of adc_read for disconnection issue at cycle {} of the execution".format(temp_controller))  
+            if temp_controller%(2000) == 0:
+                pass
+                # mqtt_client.disconnect()
+                # mqtt_client.connect(SETPOINT_IP, SETPOINT_PORT)
                 
             if not start_sampling_ts:
                 start_sampling_ts = time.time()*1000
             # tic = time.time()
             raw_voltage = ADC.ADS1263_GetChannalValue(0)
             raw_current = ADC.ADS1263_GetChannalValue(1)
+
             # print(raw_voltage)
             # print(raw_current)
             if temp_controller%(999) == 0:
                logger.info("At cycle {} the raw data are : {} and {}".format(temp_controller, raw_voltage, raw_current))  
                 
-
-            if(raw_voltage>>31 == 1):
-                voltage = REF*2 - raw_voltage * REF / 0x80000000   
-            else:
-                voltage = raw_voltage * REF / 0x7fffffff # 32bit
-      
-            if(raw_current>>31 ==1):
-                current = REF*2 - raw_current * REF / 0x80000000   
-            else:
-                current = raw_current * REF / 0x7fffffff # 32bit
+            try:
+                if(raw_voltage>>31 == 1):
+                    voltage = REF*2 - raw_voltage * REF / 0x80000000   
+                else:
+                    voltage = raw_voltage * REF / 0x7fffffff # 32bit
+            except Exception as _e:
+                logger.error("Operation on voltage data failed: {}".format(_e)) 
+                
+            try:
+                if(raw_current>>31 ==1):
+                    current = REF*2 - raw_current * REF / 0x80000000   
+                else:
+                    current = raw_current * REF / 0x7fffffff # 32bit  
+            except Exception as _e:
+                logger.error("Operation on current data failed: {}".format(_e)) 
+                
             #print(time.time()-tic)
             voltage = voltage * VOLTAGE_COEFF
             current = current * CURRENT_COEFF
@@ -232,6 +246,7 @@ def adc_read(CONTROL=True):
 
                 if CONTROL_APPLIES:
                     # make message
+                    logger.info("Control application: {}".format(rate_of_change_voltage))
                     NOW = datetime.datetime.now()
                     validFrom = datetime.datetime.strftime(NOW, "%Y-%m-%dT%H:%M:%S:00+00:00")
                     validTo = datetime.datetime.strftime(NOW+datetime.timedelta(minutes=5), "%Y-%m-%dT%H:%M:%S:00+00:00")
@@ -251,11 +266,15 @@ def adc_read(CONTROL=True):
                         # here I need to implement discharging in case there is/are EVs but not capacity
                         # This part should be completed yet...
                         pass
-                    try:
-                        mqtt_client.publish(TOPIC, json.dumps(message_template))
-                    except Exceptio as e_pub:
-                        print("OCPP setpoint instruction faced issue: ".format(err))
-                        logger.error("OCPP setpoint instruction faced issue: ".format(err))
+                    
+                    if temp_controller - control_counter > 60:
+                        control_counter = temp_controller
+                        try:
+                            mqtt_client.publish(TOPIC, json.dumps(message_template))
+                            logger.info("Control is set.")
+                        except Exception as e_pub:
+                            print("OCPP setpoint instruction faced issue: ".format(e_pub))
+                            logger.error("OCPP setpoint instruction faced issue: ".format(e_pub))
 
             # --------------------------------------------------------------------------
             # --------------------------------------------------------------------------
@@ -323,7 +342,7 @@ def adc_read(CONTROL=True):
                 night_delay = 0
 
             
-            TOTAL_DELAY = temperature_delay + night_delay + distance_delay
+            TOTAL_DELAY = 0#temperature_delay + night_delay + distance_delay
             
             if (temp_controller%100)==0:
                 url_temperature = "http://watt.linksfoundation.com:8080/api/v1/KFIk7kVivrJwWpw9pfTb/telemetry" 
@@ -374,6 +393,8 @@ def http_write():
 
     try:
         while True:
+            if temp_controller%(999) == 0:
+                logger.info("At cycle {} the http_write thread is alive".format(temp_controller))  
             if send_flag:
                 #data = [dict(ts=str(tss[i]), values=dict(voltage=str(batch_voltages[i]), current=str(batch_currents[i]))) for i in range(len(batch_voltages))]
                 
@@ -397,8 +418,7 @@ def http_write():
 
 
                 send_flag = 0
-                if temp_controller%(999) == 0:
-                   logger.info("At cycle {} the data being pushed to server".format(temp_controller))  
+
                 
                 #retry for sending again data that remained in retention queue
                 for msg in range(len(retention_queue)):
@@ -610,7 +630,7 @@ if __name__ == '__main__':
     # make the url for thingsboard instance on watt
     db_url = config['DATABASE']['DB'] + "://" + config['DATABASE']['USERNAME'] + ":" + config['DATABASE']['PASSWORD'] \
              + "@" + config['DATABASE']['HOST'] + ":" + config['DATABASE']['PORT'] + "/"
-
+             
     # to be used for measuring distance of tramways and also for visualization on dashboard
     caio_mario_coordinates = radians(config['METERING']['latitude']), radians(config['METERING']['longitude'])
 
