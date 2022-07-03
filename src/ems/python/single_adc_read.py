@@ -527,11 +527,11 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                     except Exception as e:
                         print(idx, "I need more token for IoT platform.", e)
                         
-                # for visualization of the substation position on map
-                url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
-                substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
-                _message_to_send = json.dumps(substation_fix_data)
-                response = requests.post(url_substation, headers=headers, data=_message_to_send)
+            # for visualization of the substation position on map
+            url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
+            substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
+            _message_to_send = json.dumps(substation_fix_data)
+            response = requests.post(url_substation, headers=headers, data=_message_to_send)
 
             # -----------------------------------------------------------------------------------------------
             # -----------------------------------------------------------------------------------------------
