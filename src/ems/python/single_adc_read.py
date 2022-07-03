@@ -441,7 +441,7 @@ def http_write():
 
 
 
-def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rate=60):
+def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rate=60, GW_POS_SEND=False):
     """
     makes query to database and gets the latest data of tramways fleet
     :param number_of_samples: int
@@ -482,55 +482,56 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
             # --------------------------- Vechile position visualization ------------------------------------
             # -----------------------------------------------------------------------------------------------
             # template dictionary for vehicles data
-            vehicle_dict = {i['VehicleId']:i for i in latest_positions}
-            
-            for i in latest_positions:
+            if GW_POS_SEND:
+                vehicle_dict = {i['VehicleId']:i for i in latest_positions}
                 
-                try:
-                    # compare the most recent data per tramway
-                    var_data_time = datetime.datetime.strptime(i['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
-                    ref_data_time = datetime.datetime.strptime(vehicle_dict[i['VehicleId']]['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
-                except Exception as _err:
-                    logger.error(_err)
-
-                if var_data_time >= ref_data_time:
-                    vehicle_dict[i['VehicleId']]['Timestamp'] = i['Timestamp']
-                    # In fact I need to put the timestamp of the latest retreived data from database. But now
-                    # DB doesn't get updated frequently and this maight be longer the interval thingsboard dashboard
-                    # keeps visualization of latest device data
-                    data = {"ts":time.time()*1000, #int(datetime.datetime.timestamp(var_data_time) * 1000),
-                            "values": {"latitude": i['Latitude'], "longitude": i['Longitude'],
-                                       "Speed": "N/A", "vehicleType":"tram", "vehicleID":i['VehicleId'],
-                                       "Line":i['PublishedLineName'], "destination": None,
-                                       "StopPointName":None, "AimedArrivalTime":None,
-                                       "ExpectedArrivalTime":None}}
+                for i in latest_positions:
                     
-                    vehicle_dict[i['VehicleId']].update(data = data)
-            
-            # I can add as much as needed, however on map becomes confusing
-            tram_objects = ["http://watt.linksfoundation.com:8080/api/v1/TNtck3ESnADvBhfh9ggX/telemetry", 
-                            "http://watt.linksfoundation.com:8080/api/v1/ZUX9YCzB1b1mtnTGiZvc/telemetry",
-                            "http://watt.linksfoundation.com:8080/api/v1/Bs4NKbEb9cdaTRW0OBs1/telemetry",
-                            "http://watt.linksfoundation.com:8080/api/v1/DLtQl9FdEmJlD5hWpsoE/telemetry",
-                            "http://watt.linksfoundation.com:8080/api/v1/TBfqqRrI3g6eILG4EKms/telemetry",
-                            "http://watt.linksfoundation.com:8080/api/v1/S1VwR9v83PPLiGj4QqOg/telemetry"]
-            
-            # sends the latest positions of the tramways fleet to thingsboard for visualization
-            for idx, (k, v) in enumerate(vehicle_dict.items()):
-                try:
-                    url_post = tram_objects[idx]
-
-                    _message_to_send = json.dumps(v['data'])
-                    response = requests.post(url_post, headers=headers, data=_message_to_send)
-
-                except Exception as e:
-                    print(idx, "I need more token for IoT platform.", e)
-                    
-            # for visualization of the substation position on map
-            url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
-            substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
-            _message_to_send = json.dumps(substation_fix_data)
-            response = requests.post(url_substation, headers=headers, data=_message_to_send)
+                    try:
+                        # compare the most recent data per tramway
+                        var_data_time = datetime.datetime.strptime(i['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                        ref_data_time = datetime.datetime.strptime(vehicle_dict[i['VehicleId']]['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                    except Exception as _err:
+                        logger.error(_err)
+    
+                    if var_data_time >= ref_data_time:
+                        vehicle_dict[i['VehicleId']]['Timestamp'] = i['Timestamp']
+                        # In fact I need to put the timestamp of the latest retreived data from database. But now
+                        # DB doesn't get updated frequently and this maight be longer the interval thingsboard dashboard
+                        # keeps visualization of latest device data
+                        data = {"ts":time.time()*1000, #int(datetime.datetime.timestamp(var_data_time) * 1000),
+                                "values": {"latitude": i['Latitude'], "longitude": i['Longitude'],
+                                           "Speed": "N/A", "vehicleType":"tram", "vehicleID":i['VehicleId'],
+                                           "Line":i['PublishedLineName'], "destination": None,
+                                           "StopPointName":None, "AimedArrivalTime":None,
+                                           "ExpectedArrivalTime":None}}
+                        
+                        vehicle_dict[i['VehicleId']].update(data = data)
+                
+                # I can add as much as needed, however on map becomes confusing
+                tram_objects = ["http://watt.linksfoundation.com:8080/api/v1/TNtck3ESnADvBhfh9ggX/telemetry", 
+                                "http://watt.linksfoundation.com:8080/api/v1/ZUX9YCzB1b1mtnTGiZvc/telemetry",
+                                "http://watt.linksfoundation.com:8080/api/v1/Bs4NKbEb9cdaTRW0OBs1/telemetry",
+                                "http://watt.linksfoundation.com:8080/api/v1/DLtQl9FdEmJlD5hWpsoE/telemetry",
+                                "http://watt.linksfoundation.com:8080/api/v1/TBfqqRrI3g6eILG4EKms/telemetry",
+                                "http://watt.linksfoundation.com:8080/api/v1/S1VwR9v83PPLiGj4QqOg/telemetry"]
+                
+                # sends the latest positions of the tramways fleet to thingsboard for visualization
+                for idx, (k, v) in enumerate(vehicle_dict.items()):
+                    try:
+                        url_post = tram_objects[idx]
+    
+                        _message_to_send = json.dumps(v['data'])
+                        response = requests.post(url_post, headers=headers, data=_message_to_send)
+    
+                    except Exception as e:
+                        print(idx, "I need more token for IoT platform.", e)
+                        
+                # for visualization of the substation position on map
+                url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
+                substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
+                _message_to_send = json.dumps(substation_fix_data)
+                response = requests.post(url_substation, headers=headers, data=_message_to_send)
 
             # -----------------------------------------------------------------------------------------------
             # -----------------------------------------------------------------------------------------------
