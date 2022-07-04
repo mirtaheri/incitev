@@ -1,16 +1,22 @@
-
-METERING:
+General:
   ENVIRONMENT: test
+  
+  
+METERING:
   latitude: 45.02776967279967
   longitude: 7.639643285417048
-
-
+  VOLTAGE_COEFF: 520
+  CURRENT_COEFF: 25000
+  MOVING_AVG_LEN: 5
+  
 CONTROL:
   sampling_rate: 0.1
   send_batch_size: 1
-  raw_batch_size: 100
+  raw_batch_size: 20
   KP:
   KD:
+  SAMPLING_DIVIDER: 200
+  THRESHOLD: 10
 
 DATABASE:
   USERNAME: admin

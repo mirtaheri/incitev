@@ -23,9 +23,6 @@ from gpiozero import CPUTemperature
 # ------------------------------------------------------------------------------
 # -------------------- Tuning and constants settings ---------------------------
 # ------------------------------------------------------------------------------
-# this number if higher, increases the effect of cpu temperature on sampling rate at cost of bigger granularity of acquired data
-SAMPLING_DIVIDER = 200
-
 
 abspath = os.path.dirname(os.path.abspath(__file__))
 
@@ -47,9 +44,6 @@ REF = 5.08          # Modify according to actual voltage
                     # external AVDD and AVSS(Default), or internal 2.5V
 TEST_ADC = 1        # ADC Test part
 TEST_RTD = 0        # RTD Test part
-
-VOLTAGE_COEFF = 1
-CURRENT_COEFF = 1
 
 # ------------------------------------------------------------------------------
 # -------------------- codes for reading the registers starts here -------------
@@ -74,7 +68,6 @@ db_url = None
 closest_tram_dist = 0
 
 last_avg_samples = None
-MOVING_AVG_LEN = 5
 
 data =  []
 batch = []
@@ -82,8 +75,6 @@ batch = []
 times = []
 posts = []
 
-# ATTENTION! I need to update this based on final decision, whether to consider the raw values or scaled values.
-threshold = 3e-3
 
 available_capacity = 0
 ChargeProfileID    = 0
@@ -141,10 +132,25 @@ def adc_read(CONTROL=True):
       }
     }
     
+    # constant for scaling the raw meaurements
+    VOLTAGE_COEFF = config['METERING']['VOLTAGE_COEFF']
+    CURRENT_COEFF = config['METERING']['CURRENT_COEFF']
+    
     # rate of update and size of batches
     sampling_rate = config['CONTROL']['sampling_rate']
     send_batch_size = config['CONTROL']['send_batch_size']
     raw_batch_size = config['CONTROL']['raw_batch_size']
+    
+    
+    # this number if higher, increases the effect of cpu temperature on sampling rate at cost of bigger granularity of acquired data
+    SAMPLING_DIVIDER = config['CONTROL']['SAMPLING_DIVIDER']
+    
+    # to remove the noises
+    MOVING_AVG_LEN = config['METERING']['MOVING_AVG_LEN']
+    
+    # ATTENTION! I need to update this based on final decision, whether to consider the raw values or scaled values.
+    threshold = config['CONTROL']['THRESHOLD']
+    
     
     cpu = CPUTemperature()
 
@@ -173,6 +179,7 @@ def adc_read(CONTROL=True):
         adcdata = np.zeros(shape=(5))
 
         while(1):
+        
             if temp_controller%(999) == 0:
                logger.info("A regular check of adc_read for disconnection issue at cycle {} of the execution".format(temp_controller))  
             if temp_controller%(2000) == 0:
@@ -183,8 +190,8 @@ def adc_read(CONTROL=True):
             if not start_sampling_ts:
                 start_sampling_ts = time.time()*1000
             # tic = time.time()
-            raw_voltage = ADC.ADS1263_GetChannalValue(0)
-            raw_current = ADC.ADS1263_GetChannalValue(1)
+            raw_voltage = ADC.ADS1263_GetChannalValue(1)
+            raw_current = ADC.ADS1263_GetChannalValue(0)
 
             # print(raw_voltage)
             # print(raw_current)
@@ -342,7 +349,7 @@ def adc_read(CONTROL=True):
                 night_delay = 0
 
             
-            TOTAL_DELAY = 0#temperature_delay + night_delay + distance_delay
+            TOTAL_DELAY = temperature_delay + night_delay + distance_delay
             
             if (temp_controller%100)==0:
                 url_temperature = "http://watt.linksfoundation.com:8080/api/v1/KFIk7kVivrJwWpw9pfTb/telemetry" 
