@@ -341,7 +341,7 @@ def adc_read(CONTROL=True):
             else:
                 distance_delay = 1
             
-            if (datetime.datetime.now().hour < 5): # or (datetime.datetime.now().hour >= 22):
+            if (datetime.datetime.now().hour < 5) or (datetime.datetime.now().hour >= 22):
                 night_delay = 10
                 distance_delay = 0
                 temperature_delay = 0
@@ -428,13 +428,13 @@ def http_write():
 
                 
                 #retry for sending again data that remained in retention queue
-                for msg in range(len(retention_queue)):
+                for msg_idx in range(len(retention_queue)):
                     try:
                         response_retry = requests.post(url_post, headers=headers, data=retention_queue[msg_idx])
                         if response_retry.ok:
                             retention_queue.pop(msg_idx)
                     except Exception as e:
-                        logger.info("New attempt for sending data failed again: {}".format(e))
+                        logger.error("New attempt for sending data failed again: {}".format(e))
                 # temp_controller += 1
                 # logger.info("I send data")
             if ctrl_flag:
