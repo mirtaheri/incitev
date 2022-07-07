@@ -67,8 +67,8 @@ TS = np.array([datetime.datetime.fromtimestamp(t['ts']/1000) for t in retreivedD
 DB_DATA = np.array([[float(v['value']) for v in val] for val in retreivedData.values()]).T
 
 
-DB_DATA_CORRECTED = np.flip(DB_DATA, axis=0)
-DB_TS_CORRECTED   = np.flip(TS, axis=0)
+# DB_DATA_CORRECTED = np.flip(DB_DATA, axis=0)
+# DB_TS_CORRECTED   = np.flip(TS, axis=0)
 
 
 FROM = 100
@@ -81,5 +81,8 @@ ax1.legend(["voltage"])
 ax2.legend(["current"])
 plt.show()
 
+# crea un .csv con i dati di corrente e tensione 
+df = pd.DataFrame(index=TS, data=DB_DATA, columns=['Voltage', 'Current'])
+df.to_csv("Latest Data Substation.csv")
 
 
