@@ -1,5 +1,13 @@
 #!/usr/bin/python
 # -*- coding:utf-8 -*-
+
+
+"""
+This code is mainly in charge of EMS according to the OCPP architecture.
+It reads the electrical measurements namely voltage and current and applies a control logic upon that.
+It reads data from tramways database and also write the metering values to thingsboard database
+"""
+
 import requests
 import numpy as np
 import json
@@ -109,7 +117,8 @@ def adc_read(CONTROL=True):
 
     voltages = np.array([])
     currents = np.array([])
- 
+    
+    # template message for ocpp 2.0.1 smart charging control
     ocpp_smrtchg_template = {
       "csChargingProfiles": {
         "chargingProfileId": None,
@@ -280,8 +289,8 @@ def adc_read(CONTROL=True):
                             mqtt_client.publish(TOPIC, json.dumps(message_template))
                             logger.info("Control is set.")
                         except Exception as e_pub:
-                            print("OCPP setpoint instruction faced issue: ".format(e_pub))
-                            logger.error("OCPP setpoint instruction faced issue: ".format(e_pub))
+                            print("OCPP setpoint instruction faced issue: {}".format(e_pub))
+                            logger.error("OCPP setpoint instruction faced issue: {}".format(e_pub))
 
             # --------------------------------------------------------------------------
             # --------------------------------------------------------------------------
@@ -334,13 +343,16 @@ def adc_read(CONTROL=True):
                 cpu = CPUTemperature()
             
             # this value of 300 is put based on experience and some tries. I need to watch the temperature of cpu on dashboard and change this accordingly to avoid overheating RPI
+            # makes a delay proportional to the temperature of CPU
             temperature_delay = max(cpu_temperature-40, 0)/SAMPLING_DIVIDER
             
+            # if there is valid data comming from tramways, sets the delay inversely proportional to the closest tramways
             if closest_tram_dist <= 2:
                 distance_delay = 0
             else:
                 distance_delay = 1
             
+            # if night, slow down sampling
             if (datetime.datetime.now().hour < 5) or (datetime.datetime.now().hour >= 22):
                 night_delay = 10
                 distance_delay = 0
@@ -423,7 +435,7 @@ def http_write():
                     retention_flag = True
                     retention_queue.append(_message_to_send)
 
-
+                # reset the flag to let control loop fill buffer again
                 send_flag = 0
 
                 
@@ -461,6 +473,7 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
     """
     global closest_tram_dist
     while True:
+        MONGO_CONNECTED = True
         try:
             # connect o DB
             db_client = pymongo.MongoClient(db_url)
@@ -469,22 +482,28 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
             # tabels
             collection_predictions = db["predictions"]
             collection_positions = db["positions"]
-
+            
             # separate cursors per table
             cursor_predictions = collection_predictions.find().sort([('ExpectedArrivalTime', -1)]).limit(number_of_samples)
             cursor_positions = collection_positions.find().sort([('Timestamp', -1)]).limit(number_of_samples)
             
-            latest_positions = list(cursor_positions)
-            latest_registry = datetime.datetime(1970,1,1)
-            for i in latest_positions:
-                dt = datetime.datetime.strptime(i['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
-                if dt>latest_registry:
-                    latest_registry = dt
-                    
-            if temp_controller%(999) == 0:
-               logger.info("At cycle {} Database is queried".format(temp_controller))  
+        except Exception as e:
+            MONGO_CONNECTED = False
+            logger.error("CONNECTION TO DATABASE SERVER REFUSED: {}".format(e))
+            print("CONNECTION TO DATABASE SERVER REFUSED: {}".format(e))
+            time.sleep(db_query_rate)
+        
+        if MONGO_CONNECTED == True:
+            try:                
+                latest_positions = list(cursor_positions)
+                latest_registry = datetime.datetime(1970,1,1)
+                for i in latest_positions:
+                    dt = datetime.datetime.strptime(i['Timestamp'].split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                    if dt>latest_registry:
+                        latest_registry = dt
+            except Exception as e:
+                logger.error("error while parsing data: {}".format(e))
                 
-                    
                     
             # --------------------------- Vechile position visualization ------------------------------------
             # -----------------------------------------------------------------------------------------------
@@ -533,32 +552,47 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
     
                     except Exception as e:
                         print(idx, "I need more token for IoT platform.", e)
+                        logger.error("More token for IoT platform needed : {}".format(e))
                         
-            # for visualization of the substation position on map
-            url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
-            substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
-            _message_to_send = json.dumps(substation_fix_data)
-            response = requests.post(url_substation, headers=headers, data=_message_to_send)
-
+                        
             # -----------------------------------------------------------------------------------------------
             # -----------------------------------------------------------------------------------------------
-            db_client.close()    
-            if (datetime.datetime.now() - latest_registry).seconds <= valid_data_seconds: # This meand if the latest data is related to more than 5 minuts ago, discard it 
-                coordinates_list = coordinates(latest_positions)
-                closest_tram_dist = get_distance(coordinates_list)
+            try:
+                db_client.close()                
+            except Exception as e:
+                logger.error("Issue while closing connection to DB {}".format(e))
                 
+            if (datetime.datetime.now() - latest_registry).seconds <= valid_data_seconds: # This meand if the latest data is related to more than 5 minuts ago, discard it     
+                try:
+                    coordinates_list = coordinates(latest_positions)
+                    closest_tram_dist = get_distance(coordinates_list)
+                except Exception as e:
+                    logger.error("Calculation erro {}".format(e))
             else:
                 # valid data not available
                 # logger.info("Databse data are related to more than 5 minutes ago; to be discarded!")
                 closest_tram_dist = 2
-            
-        except Exception as e:
-            logger.warning("CONNECTION TO DATABASE SERVER REFUSED: {}".format(e))
-            print("CONNECTION TO DATABASE SERVER REFUSED: {}".format(e))
-        
+                
+
+            # -----------------------------------------------------------------------------------------------
+            # -----------------------------------------------------------------------------------------------
+            # for visualization of the substation position on map
+            try:
+                url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
+                substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
+                _message_to_send = json.dumps(substation_fix_data)
+                response = requests.post(url_substation, headers=headers, data=_message_to_send)
+    
+            except Exception as e:
+                time.sleep(db_query_rate)
+                logger.error("Substation position set is failed {}".format(e))
+                continue
+
         time.sleep(db_query_rate)
       
-
+      
+      
+      
 
 def get_distance(lat_lon_list):
     """
@@ -655,10 +689,17 @@ if __name__ == '__main__':
     try:
         # handle differnt parts of codes by different separated threads
         # threadAdcRead   = threading.Thread(target=adc_read, kwargs={"control":ctrl_flag}).start()
+        
+        # This is the main thread that handles the measurement and control loop
         AdcRead     = threading.Thread(target=adc_read).start()
+        
+        # This thread is in charge of sending batch data to database
         HttpWrite   = threading.Thread(target=http_write).start()
+        
+        # This thread is only for making regular query to tramways database
         TramTracker = threading.Thread(target=tramway_positions).start()
         # threadprocessControl = threading.Thread(target=stop_control).start()
+        
     except KeyboardInterrupt:
         sys.exit()
         print("intentional exit")
