@@ -371,8 +371,11 @@ def adc_read(CONTROL=True):
                 
 
                 _message_to_send = json.dumps(data)
-                response = requests.post(url_temperature, headers=headers, data=_message_to_send)
-
+                try:
+                    response_temperature = requests.post(url_temperature, headers=headers, data=_message_to_send, timeout=3)
+                except Exception as e:
+                    logger.info("Temperature update failed: {}".format(response_temperature))
+                    
             #print(cpu_temperature, TOTAL_DELAY, temperature_delay, night_delay, distance_delay, closest_tram_dist)
             time.sleep(TOTAL_DELAY)
 
@@ -427,26 +430,18 @@ def http_write():
                 _message_to_send = json.dumps(data)
                
                 try:
-                    response = requests.post(url_post, headers=headers, data=_message_to_send)
+                    response_metering = requests.post(url_post, headers=headers, data=_message_to_send, timeout=5)
                     # print(" -----> ", response.ok, response, " <------")
+                    logger.info("Latest buffered data are POSTed to server successfully with response {}".format(response_metering))
                     retention_flag = False
                 except Exception as e:
-                    logger.info("Connection to server problem : {}".format(e))
+                    logger.error("Connection to server problem : {}".format(e))
                     retention_flag = True
                     retention_queue.append(_message_to_send)
 
                 # reset the flag to let control loop fill buffer again
                 send_flag = 0
 
-                
-                #retry for sending again data that remained in retention queue
-                for msg_idx in range(len(retention_queue)):
-                    try:
-                        response_retry = requests.post(url_post, headers=headers, data=retention_queue[msg_idx])
-                        if response_retry.ok:
-                            retention_queue.pop(msg_idx)
-                    except Exception as e:
-                        logger.error("New attempt for sending data failed again: {}".format(e))
                 # temp_controller += 1
                 # logger.info("I send data")
             if ctrl_flag:
@@ -456,6 +451,34 @@ def http_write():
     except KeyboardInterrupt:
         sys.exit()
         print("intentional exit")
+
+
+
+def retention():
+
+    global retention_flag
+    global retention_queue
+    
+    while True:
+        RETENTION_FAILURES = 0
+        logger.info("There are {} queued message at buffer.".format(len(retention_queue)))
+        #retry for sending again data that remained in retention queue
+        for msg_idx in range(len(retention_queue)):
+            try:
+                response_retry = requests.post(url_post, headers=headers, data=retention_queue[msg_idx], timeout=4)
+                if response_retry.ok:
+                    logger.info("Successfully pushed the data with index {}.".format(msg_idx))
+                    retention_queue.pop(msg_idx)
+            except Exception as e:
+                logger.error("New attempt for sending data failed again: {}".format(e))
+                RETENTION_FAILURES += 1
+            
+            # if attempts are failing all, better to wait   
+            if RETENTION_FAILURES > 3:
+                break
+                
+        time.sleep(120)
+
 
 
 
@@ -548,7 +571,7 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                         url_post = tram_objects[idx]
     
                         _message_to_send = json.dumps(v['data'])
-                        response = requests.post(url_post, headers=headers, data=_message_to_send)
+                        response_fleet = requests.post(url_post, headers=headers, data=_message_to_send)
     
                     except Exception as e:
                         print(idx, "I need more token for IoT platform.", e)
@@ -581,13 +604,15 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
                 url_substation = "http://watt.linksfoundation.com:8080/api/v1/HEjtuxNwlt5sQCcQzEKe/telemetry"
                 substation_fix_data = {"ts": time.time()*1000, "values": {"latitude": 45.027689409920946, "longitude": 7.639869384152541, "vehicleType": "substation"}}
                 _message_to_send = json.dumps(substation_fix_data)
-                response = requests.post(url_substation, headers=headers, data=_message_to_send)
-    
+                response_station = requests.post(url_substation, headers=headers, data=_message_to_send, timeout=10)
+                logger.info("Substation position is set successfully")
+            
             except Exception as e:
                 time.sleep(db_query_rate)
                 logger.error("Substation position set is failed {}".format(e))
                 continue
 
+        logger.info("Positioning service finished a loop.")
         time.sleep(db_query_rate)
       
       
@@ -698,12 +723,15 @@ if __name__ == '__main__':
         
         # This thread is only for making regular query to tramways database
         TramTracker = threading.Thread(target=tramway_positions).start()
+        
+        # This thread is only for making regular query to tramways database
+        DataRetention = threading.Thread(target=retention).start()
         # threadprocessControl = threading.Thread(target=stop_control).start()
         
     except KeyboardInterrupt:
-        sys.exit()
-        print("intentional exit")
-        
+        logger.warning("Forced exit by user interface")
+        print("Forced exit by user interface")
+        sys.exit()        
     # todo: 
     # handle disconnect from broker
     # listening for status of the EVs from CSCU for SoC and connected vehicles
