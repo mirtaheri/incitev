@@ -258,6 +258,8 @@ def adc_read(CONTROL=True, CONTROL_METHOD="DYNAMIC"):
                     
                     # if voltage is increasing and the current is reducing, there is a braking event
                     CONTROL_APPLIES = True if rate_of_change_voltage > threshold and np.sign(rate_of_change_current) == -1 else False
+                    
+                    # logger.info(" +++ Control application +++: ")
                 except Exception as err:
                     print("Control application issue: ".format(err))
                     logger.error("Control application issue: ".format(err))
