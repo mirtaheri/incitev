@@ -29,7 +29,7 @@ from logging.handlers import RotatingFileHandler
 from gpiozero import CPUTemperature
 
 # ------------------------------------------------------------------------------
-# -------------------- Tuning and constants settings ---------------------------
+# -------------------- Tunning and constants settings ---------------------------
 # ------------------------------------------------------------------------------
 
 abspath = os.path.dirname(os.path.abspath(__file__))
@@ -76,6 +76,7 @@ db_url = None
 closest_tram_dist = 0
 
 last_avg_samples = None
+current_plugged_ev_status = {}
 
 data =  []
 batch = []
@@ -88,8 +89,9 @@ available_capacity = 0
 ChargeProfileID    = 0
 control_counter = 0
 
+cscu_update_msg = None
 
-def adc_read(CONTROL=True):
+def adc_read(CONTROL=True, CONTROL_METHOD="DYNAMIC"):
     """
     main function that handles the measurements and sampling and making dataset
     :param CONTROL:
@@ -234,6 +236,7 @@ def adc_read(CONTROL=True):
             # -------------------------------- CONTROL ---------------------------------
             # --------------------------------------------------------------------------
             if CONTROL:
+                
                 try:
                     # tries to filter the noises by a moving average
                     control_array_voltage = np.insert(control_array_voltage, 0, voltage)[:MOVING_AVG_LEN]
@@ -261,36 +264,88 @@ def adc_read(CONTROL=True):
 
 
                 if CONTROL_APPLIES:
-                    # make message
-                    logger.info("Control application: {}".format(rate_of_change_voltage))
-                    NOW = datetime.datetime.now()
-                    validFrom = datetime.datetime.strftime(NOW, "%Y-%m-%dT%H:%M:%S:00+00:00")
-                    validTo = datetime.datetime.strftime(NOW+datetime.timedelta(minutes=5), "%Y-%m-%dT%H:%M:%S:00+00:00")
-                    message_template = copy.deepcopy(ocpp_smrtchg_template)
-                    message_template['csChargingProfiles']['validFrom'] = validFrom
-                    message_template['csChargingProfiles']['validTo'] = validTo
-                    message_template['csChargingProfiles']['chargingProfileId'] = ChargeProfileID
-               
-                    
-                    # from here, all depends on the received data from cscu
-                    ChargeProfileID += 1 
-                    if available_capacity > 0:
-                        # this value should be coming from message of cscu indicating how many vehicle are connected to which chargers
-                        normalized_power_per_ev = 10000
-                        message_template['csChargingProfiles']['chargingSchedule']['chargingSchedulePeriod'][0]['limit'] = normalized_power_per_ev
-                    else:
-                        # here I need to implement discharging in case there is/are EVs but not capacity
-                        # This part should be completed yet...
-                        pass
-                    
-                    if temp_controller - control_counter > 60:
-                        control_counter = temp_controller
+                    # changes according to internal talk [15/07/2022]
+                    # control is static based on time of the day
+                    if CONTROL_METHOD == "STATIC":
                         try:
-                            mqtt_client.publish(TOPIC, json.dumps(message_template))
-                            logger.info("Control is set.")
-                        except Exception as e_pub:
-                            print("OCPP setpoint instruction faced issue: {}".format(e_pub))
-                            logger.error("OCPP setpoint instruction faced issue: {}".format(e_pub))
+                            for idx, (k,v) in enumerate(current_plugged_ev_status.items()):
+                                # loops over online vSECC and instructs setpoints according to the EVs' SoC
+                                for ev_index in k[evse]:
+                                    if ev_index["soc"] == None:
+                                        continue
+                                        
+                                    else:
+                                        soc = ev_index["soc"]
+                                        if soc < 100:
+                                            # control steps are divided in 15 minutes steps
+                                            # there is no information regarding capacity of the EVs' battery, so a naiive estimation for all
+                                            control_steps = 12
+                                            if soc > 70:
+                                                power_limit = 1000
+                                                
+                                            elif (soc > 30) and (soc <=70):
+                                                power_limit = 2000
+                                                
+                                            if soc <= 30:
+                                                power_limit = 3000
+                                                
+                                        else:
+                                            control_steps = 0
+                                            power_limit = 0
+                                    
+                                    NOW = datetime.datetime.now()
+                                    validFrom = datetime.datetime.strftime(NOW+datetime.timedelta(minutes=0*(0+_step)), "%Y-%m-%dT%H:%M:%S:00+00:00")
+                                    validTo = datetime.datetime.strftime(NOW+datetime.timedelta(minutes=int(60*10000/power_limit)), "%Y-%m-%dT%H:%M:%S:00+00:00")
+                                    message_template = copy.deepcopy(ocpp_smrtchg_template)
+                                    for _step in range(control_steps):
+                                        message_template['csChargingProfiles']['chargingProfileId'] = v["evse_id"]
+                                        control_message_temp = {"startPeriod":_step*900, "limit":power_limit}
+                                        message_template['csChargingProfiles']['chargingSchedule']['chargingSchedulePeriod'].append(control_message_temp)
+                                    logger.info("Static control application: {} for EV {}".format(rate_of_change_voltage, v["evse_id"]))
+                                                            
+                                    # send the setpoints over mqtt
+                                    try:
+                                        mqtt_client.publish(TOPIC, json.dumps(message_template))
+                                        logger.info("Control is set.")
+                                    except Exception as e_pub:
+                                        print("OCPP setpoint instruction faced issue: {}".format(e_pub))
+                                        logger.error("OCPP setpoint instruction faced issue: {}".format(e_pub))                                 
+                        except Exception as e:
+                            logger.error("Control meesage writing failed: {}".format(e))
+                            
+
+                    
+                    elif CONTROL_METHOD == "DYNAMIC":
+                        logger.info("Dynamic control application: {}".format(rate_of_change_voltage))
+                        # make message
+                        NOW = datetime.datetime.now()
+                        validFrom = datetime.datetime.strftime(NOW, "%Y-%m-%dT%H:%M:%S:00+00:00")
+                        validTo = datetime.datetime.strftime(NOW+datetime.timedelta(minutes=5), "%Y-%m-%dT%H:%M:%S:00+00:00")
+                        message_template = copy.deepcopy(ocpp_smrtchg_template)
+                        message_template['csChargingProfiles']['validFrom'] = validFrom
+                        message_template['csChargingProfiles']['validTo'] = validTo
+                        message_template['csChargingProfiles']['chargingProfileId'] = ChargeProfileID
+                   
+                        
+                        # from here, all depends on the received data from cscu
+                        ChargeProfileID += 1 
+                        if available_capacity > 0:
+                            # this value should be coming from message of cscu indicating how many vehicle are connected to which chargers
+                            normalized_power_per_ev = 10000
+                            message_template['csChargingProfiles']['chargingSchedule']['chargingSchedulePeriod'][0]['limit'] = normalized_power_per_ev
+                        else:
+                            # here I need to implement discharging in case there is/are EVs but not capacity
+                            # This part should be completed yet...
+                            pass
+                        
+                        if temp_controller - control_counter > 60:
+                            control_counter = temp_controller
+                            try:
+                                mqtt_client.publish(TOPIC, json.dumps(message_template))
+                                logger.info("Control is set.")
+                            except Exception as e_pub:
+                                print("OCPP setpoint instruction faced issue: {}".format(e_pub))
+                                logger.error("OCPP setpoint instruction faced issue: {}".format(e_pub))
 
             # --------------------------------------------------------------------------
             # --------------------------------------------------------------------------
@@ -617,7 +672,15 @@ def tramway_positions(number_of_samples=20, valid_data_seconds=300, db_query_rat
       
       
       
-      
+def cscu_update():
+    client_mqtt_cscu_listener = mqtt.Client() 
+    client_mqtt_cscu_listener.on_message    = on_message
+    client_mqtt_cscu_listener.on_connect    = on_connect
+    client_mqtt_cscu_listener.connect(IP, PORT)
+    TOPICS = [("incitev/uc4/smartcharging/status/cs",0)]
+    client_mqtt_cscu_listener.subscribe(TOPICS)
+    client_mqtt_cscu_listener.loop_forever()
+    
 
 def get_distance(lat_lon_list):
     """
@@ -669,7 +732,40 @@ def read_config(file_path = abspath + "/config.yaml"):
 
 def onConnect(mqttc, userdata, flags, rc):
     """
-    mqtt calback
+    mqtt publisher calback
+    :param mqttc:
+    :param userdata:
+    :param flags:
+    :param rc:
+    :return:
+    """
+    print("Connected with result code "+str(rc))
+    if rc!=0 :
+        mqttc.reconnect()
+
+
+    
+def on_message(client, userdata, message):
+    global cscu_update_msg
+    global current_plugged_ev_status
+    # I need to initialize it otherwise requires more stuff for handeling session closure
+    current_plugged_ev_status = {}
+    
+    payLoad     = message.payload
+    cscu_update_msg = payLoad.decode('utf-8')
+    logger.info("New update from CSCU: {}".format(cscu_update_msg))
+    try:
+    
+        for board in cscu_update_msg["boards"]:
+            current_plugged_ev_status[board['id']] = {"status":board["status"], "evse":board["evse"]}
+    except Exception as e:
+        logger.error("CSCU message  fell into error: {}".format(e))
+        
+    
+    
+def on_connect(mqttc, userdata, flags, rc):
+    """
+    mqtt listener calback
     :param mqttc:
     :param userdata:
     :param flags:
@@ -680,7 +776,12 @@ def onConnect(mqttc, userdata, flags, rc):
     if rc!=0 :
         mqttc.reconnect()
         
-        
+
+def on_disconnect(mqttc, userdata, rc):
+    logger.warning("Unexpected disconnection occurred where disconnecting reason is {}".format(str(rc)))
+    mqttc.connected_flag=False
+    mqttc.disconnect_flag=True
+         
         
 if __name__ == '__main__':
 
@@ -727,6 +828,9 @@ if __name__ == '__main__':
         # This thread is only for making regular query to tramways database
         DataRetention = threading.Thread(target=retention).start()
         # threadprocessControl = threading.Thread(target=stop_control).start()
+        
+        # Listening to CSCU for getting the updates from charging stations
+        CSCUListener = threading.Thread(target=cscu_update).start()
         
     except KeyboardInterrupt:
         logger.warning("Forced exit by user interface")
